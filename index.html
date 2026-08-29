@@ -133,6 +133,21 @@
   .grid-swatch{display:grid; gap:2px; width:34px; height:22px;}
   .grid-swatch span{background:var(--accent); opacity:0.55; border-radius:2px;}
 
+  .tpl-list{display:flex; flex-direction:column; gap:8px;}
+  .tpl-btn{
+    display:flex; align-items:center; gap:10px; padding:8px; border-radius:11px;
+    border:1px solid var(--line); background:var(--surface-2); cursor:pointer; text-align:left; width:100%;
+  }
+  .tpl-btn:hover{border-color:var(--accent);}
+  .tpl-swatch{
+    position:relative; width:58px; height:39px; border-radius:7px; flex-shrink:0;
+    overflow:hidden; border:1px solid rgba(0,0,0,0.15);
+  }
+  .tpl-swatch i{position:absolute; box-sizing:border-box; border:1px solid rgba(255,255,255,0.4);}
+  .tpl-meta{display:flex; flex-direction:column; gap:1px; min-width:0;}
+  .tpl-meta strong{font-size:12px; font-weight:700;}
+  .tpl-meta span{font-size:10.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
   .field{display:flex; flex-direction:column; gap:5px; margin-bottom:10px;}
   .field:last-child{margin-bottom:0;}
   .field label{font-size:12px; color:var(--muted); display:flex; justify-content:space-between;}
@@ -298,7 +313,12 @@
   <div class="workspace">
     <aside class="toolbox panel">
       <div class="tb-section">
-        <h2>グリッドから作成</h2>
+        <h2>テンプレートから作成</h2>
+        <div class="tpl-list" id="templateList"></div>
+      </div>
+
+      <div class="tb-section">
+        <h2>グリッドから作成(シンプル)</h2>
         <div class="grid-presets" id="gridPresets"></div>
       </div>
 
@@ -426,6 +446,7 @@
     addMenuBtn: document.getElementById("addMenuBtn"),
     canvas: document.getElementById("canvas"),
     canvasSizeLabel: document.getElementById("canvasSizeLabel"),
+    templateList: document.getElementById("templateList"),
     gridPresets: document.getElementById("gridPresets"),
     bgColor: document.getElementById("bgColor"),
     bgImageInput: document.getElementById("bgImageInput"),
@@ -879,10 +900,11 @@
         box.style.boxShadow = "none";
       }
 
-      var labelFontSize = area.fontSize ? Math.round(area.fontSize * s) : null;
+      var autoFontSizeReal = Math.max(24, Math.min(88, area.h * 0.14));
+      var labelFontSize = Math.round((area.fontSize || autoFontSizeReal) * s);
       var textShadowCss = area.textShadow ? "text-shadow:0 1px 3px rgba(0,0,0,0.65),0 0 8px rgba(0,0,0,0.35);" : "";
-      var labelStyle = "font-weight:" + fontWeightCss(area.fontWeight) + ";" + textShadowCss + (labelFontSize ? ("font-size:" + labelFontSize + "px;") : "");
-      var iconStyle = textShadowCss + (labelFontSize ? ("font-size:" + Math.round(labelFontSize * 1.6) + "px;") : "");
+      var labelStyle = "font-weight:" + fontWeightCss(area.fontWeight) + ";" + textShadowCss + "font-size:" + labelFontSize + "px;";
+      var iconStyle = textShadowCss + "font-size:" + Math.round(labelFontSize * 1.6) + "px;";
 
       box.innerHTML =
         '<span class="area-type-badge">' + actionTypeLabel(area.actionType) + '</span>' +
@@ -1290,7 +1312,7 @@
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = a.textColor;
-      var fontSize = a.fontSize ? a.fontSize : Math.max(24, Math.min(64, a.h * 0.14));
+      var fontSize = a.fontSize ? a.fontSize : Math.max(24, Math.min(88, a.h * 0.14));
       var weight = fontWeightCss(a.fontWeight);
       var cx = a.x + a.w / 2;
       var cy = a.y + a.h / 2;
@@ -1346,6 +1368,180 @@
     } finally {
       el.exportPngBtn.disabled = false;
     }
+  }
+
+  // ---------- templates ----------
+
+  /**
+   * グラデーション画像を生成して data URL を返します。
+   *
+   * menu.bgImage にそのまま設定できる形にすることで、
+   * 既存の背景画像パイプライン(プレビュー/PNG書き出し)をそのまま使い回せます。
+   *
+   * @param {number} targetW キャンバスの実寸幅
+   * @param {number} targetH キャンバスの実寸高さ
+   * @param {{colors:string[], angle?:number}} spec グラデーション定義
+   * @returns {string} data URL
+   */
+  function generateGradientDataUrl(targetW, targetH, spec){
+    var w = 480;
+    var h = Math.max(1, Math.round(w * targetH / targetW));
+    var c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    var ctx = c.getContext("2d");
+    var angle = spec.angle !== undefined ? spec.angle : 135;
+    var rad = (angle * Math.PI) / 180;
+    var cx = w / 2;
+    var cy = h / 2;
+    var dx = Math.cos(rad) * (w / 2);
+    var dy = Math.sin(rad) * (h / 2);
+    var grad = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+    spec.colors.forEach(function(color, i){
+      grad.addColorStop(spec.colors.length > 1 ? i / (spec.colors.length - 1) : 0, color);
+    });
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    return c.toDataURL("image/png");
+  }
+
+  var TEMPLATES = [
+    {
+      name: "シンプル基本形",
+      desc: "6ボタン・情報整理向け",
+      size: "full",
+      bg: { colors: ["#123524", "#0B3B21"], angle: 160 },
+      areas: [
+        { xr: 0, yr: 0, wr: 1 / 3, hr: 0.5, label: "お知らせ", icon: "📣", bgColor: "#15613F" },
+        { xr: 1 / 3, yr: 0, wr: 1 / 3, hr: 0.5, label: "予約", icon: "📅", bgColor: "#0C4A30" },
+        { xr: 2 / 3, yr: 0, wr: 1 / 3, hr: 0.5, label: "メニュー", icon: "📖", bgColor: "#15613F" },
+        { xr: 0, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "アクセス", icon: "📍", bgColor: "#0C4A30" },
+        { xr: 1 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "クーポン", icon: "🎟️", bgColor: "#15613F" },
+        { xr: 2 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "お問い合わせ", icon: "💬", bgColor: "#0C4A30" }
+      ]
+    },
+    {
+      name: "ヒーロー+3ボタン",
+      desc: "訴求バナー付き",
+      size: "full",
+      bg: { colors: ["#1F1147", "#4A2E8A"], angle: 135 },
+      areas: [
+        { xr: 0, yr: 0, wr: 1, hr: 0.62, label: "今日のおすすめ", icon: "✨", transparent: true, border: "none", fontWeight: "extrabold", fontSize: 96, textShadow: true },
+        { xr: 0, yr: 0.62, wr: 1 / 3, hr: 0.38, label: "予約する", icon: "📅", bgColor: "#B33951", border: "shadow", radius: 22 },
+        { xr: 1 / 3, yr: 0.62, wr: 1 / 3, hr: 0.38, label: "メニュー", icon: "📖", bgColor: "#1D5C63", border: "shadow", radius: 22 },
+        { xr: 2 / 3, yr: 0.62, wr: 1 / 3, hr: 0.38, label: "クーポン", icon: "🎟️", bgColor: "#4C3B4D", border: "shadow", radius: 22 }
+      ]
+    },
+    {
+      name: "左右2分割",
+      desc: "予約 / 問い合わせの2択",
+      size: "full",
+      bg: { colors: ["#092635", "#1B4242" ], angle: 120 },
+      areas: [
+        { xr: 0, yr: 0, wr: 0.5, hr: 1, label: "予約する", icon: "📅", bgColor: "#134E4A", border: "shadow", radius: 28, fontWeight: "extrabold", fontSize: 64 },
+        { xr: 0.5, yr: 0, wr: 0.5, hr: 1, label: "お問い合わせ", icon: "💬", bgColor: "#0F766E", border: "shadow", radius: 28, fontWeight: "extrabold", fontSize: 64 }
+      ]
+    },
+    {
+      name: "下部タブ風 4分割",
+      desc: "Compact・ミニマルなナビ",
+      size: "compact",
+      bg: { colors: ["#101820", "#1B2A38"], angle: 90 },
+      areas: [
+        { xr: 0, yr: 0, wr: 0.25, hr: 1, label: "ホーム", icon: "🏠", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true },
+        { xr: 0.25, yr: 0, wr: 0.25, hr: 1, label: "予約", icon: "📅", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true },
+        { xr: 0.5, yr: 0, wr: 0.25, hr: 1, label: "マイページ", icon: "👤", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true },
+        { xr: 0.75, yr: 0, wr: 0.25, hr: 1, label: "設定", icon: "⚙️", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true }
+      ]
+    },
+    {
+      name: "ファミリーログ",
+      desc: "体調・出来事などの家族記録",
+      size: "full",
+      bg: { colors: ["#3E2723", "#6D4C41"], angle: 135 },
+      areas: [
+        { xr: 0, yr: 0, wr: 0.5, hr: 0.5, label: "体調", icon: "🩺", bgColor: "#8D6E63" },
+        { xr: 0.5, yr: 0, wr: 0.5, hr: 0.5, label: "出来事", icon: "📌", bgColor: "#795548" },
+        { xr: 0, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "買い物", icon: "🛒", bgColor: "#A1887F" },
+        { xr: 1 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "家事", icon: "🧺", bgColor: "#6D4C41" },
+        { xr: 2 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "自由記録", icon: "📝", bgColor: "#5D4037" }
+      ]
+    }
+  ];
+
+  function applyTemplate(template){
+    var menu = activeMenu();
+
+    if (template.size) {
+      var preset = SIZES[template.size];
+      menu.size = template.size;
+      menu.width = preset.width;
+      menu.height = preset.height;
+    }
+
+    if (template.bg) {
+      menu.bgColor = template.bg.colors[0];
+      menu.bgImage = generateGradientDataUrl(menu.width, menu.height, template.bg);
+    }
+
+    menu.areas = template.areas.map(function(spec){
+      var transparent = !!spec.transparent;
+      return {
+        id: uid(),
+        x: Math.round(spec.xr * menu.width),
+        y: Math.round(spec.yr * menu.height),
+        w: Math.round(spec.wr * menu.width),
+        h: Math.round(spec.hr * menu.height),
+        label: spec.label,
+        icon: spec.icon || "",
+        image: null,
+        bgColor: spec.bgColor || "#1B7A43",
+        textColor: spec.textColor || "#FFFFFF",
+        transparent: transparent,
+        radius: spec.radius !== undefined ? spec.radius : 16,
+        border: spec.border || "line",
+        fontWeight: spec.fontWeight || "bold",
+        fontSize: spec.fontSize || null,
+        textShadow: spec.textShadow !== undefined ? spec.textShadow : transparent,
+        actionType: "message",
+        actionValue: spec.label,
+        targetMenuId: null
+      };
+    });
+    menu.selectedId = null;
+    render();
+    showToast(template.name + " を適用しました");
+  }
+
+  function renderTemplateButtons(){
+    el.templateList.innerHTML = "";
+    TEMPLATES.forEach(function(template){
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "tpl-btn";
+
+      var swatch = document.createElement("div");
+      swatch.className = "tpl-swatch";
+      swatch.style.background = "linear-gradient(" + ((template.bg.angle || 135) - 90) + "deg, " + template.bg.colors.join(",") + ")";
+      template.areas.forEach(function(spec){
+        var mark = document.createElement("i");
+        mark.style.left = (spec.xr * 100) + "%";
+        mark.style.top = (spec.yr * 100) + "%";
+        mark.style.width = (spec.wr * 100) + "%";
+        mark.style.height = (spec.hr * 100) + "%";
+        mark.style.background = spec.transparent ? "transparent" : (spec.bgColor || "#1B7A43");
+        swatch.appendChild(mark);
+      });
+      btn.appendChild(swatch);
+
+      var meta = document.createElement("div");
+      meta.className = "tpl-meta";
+      meta.innerHTML = "<strong>" + escapeHtml(template.name) + "</strong><span>" + escapeHtml(template.desc) + "</span>";
+      btn.appendChild(meta);
+
+      btn.addEventListener("click", function(){ applyTemplate(template); });
+      el.templateList.appendChild(btn);
+    });
   }
 
   // ---------- static UI: grid presets ----------
@@ -1415,6 +1611,7 @@
   el.exportPngBtn.addEventListener("click", exportPng);
 
   // ---------- init ----------
+  renderTemplateButtons();
   renderGridPresetButtons();
   render();
 
