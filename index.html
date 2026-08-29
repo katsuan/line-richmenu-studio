@@ -1,0 +1,1092 @@
+<meta charset="utf-8">
+<title>Rich Menu Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#F3F6F4;
+    --surface:#FFFFFF;
+    --surface-2:#EAF1ED;
+    --ink:#15221C;
+    --muted:#5B6B63;
+    --line:#D7E0DA;
+    --accent:#06C755;
+    --accent-ink:#04331B;
+    --accent-soft:#E1F8EA;
+    --danger:#C8433D;
+    --warn:#A8700A;
+    --shadow: 0 1px 2px rgba(21,34,28,0.06), 0 8px 24px -12px rgba(21,34,28,0.18);
+    --font-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0D1512;
+      --surface:#141F19;
+      --surface-2:#1A2620;
+      --ink:#E7F1EC;
+      --muted:#8CA79B;
+      --line:#263229;
+      --accent:#35DE7B;
+      --accent-ink:#04140B;
+      --accent-soft:#173226;
+      --danger:#FF8880;
+      --warn:#E8A63B;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+
+  :root[data-theme="dark"]{
+    --bg:#0D1512;
+    --surface:#141F19;
+    --surface-2:#1A2620;
+    --ink:#E7F1EC;
+    --muted:#8CA79B;
+    --line:#263229;
+    --accent:#35DE7B;
+    --accent-ink:#04140B;
+    --accent-soft:#173226;
+    --danger:#FF8880;
+    --warn:#E8A63B;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-display);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{text-wrap:balance; margin:0;}
+  button{font-family:inherit;}
+  input,select{font-family:inherit;}
+  *:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;}
+  }
+
+  .app{display:flex; flex-direction:column; min-height:100vh;}
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:14px 24px; background:var(--surface); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:20;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{font-size:28px; line-height:1;}
+  .brand-text h1{font-size:18px; font-weight:700; letter-spacing:-0.01em;}
+  .brand-text p{margin:2px 0 0; font-size:12.5px; color:var(--muted);}
+  .topbar-actions{display:flex; align-items:center; gap:10px;}
+  .field-inline{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted);}
+  .field-inline select{
+    padding:7px 10px; border-radius:8px; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--ink); font-size:13px;
+  }
+
+  /* ---------- workspace grid ---------- */
+  .workspace{
+    display:grid; grid-template-columns:252px 1fr 288px; gap:16px;
+    padding:18px 24px; flex:1; align-items:start;
+  }
+  @media (max-width: 980px){
+    .workspace{grid-template-columns:1fr;}
+  }
+
+  .panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow);
+  }
+
+  /* ---------- toolbox ---------- */
+  .toolbox{padding:16px; display:flex; flex-direction:column; gap:18px;}
+  .tb-section h2{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--muted); margin-bottom:10px;
+  }
+  .grid-presets{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .grid-btn{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:10px 6px; border-radius:10px; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--ink); cursor:pointer; font-size:11.5px;
+  }
+  .grid-btn:hover{border-color:var(--accent);}
+  .grid-swatch{display:grid; gap:2px; width:34px; height:22px;}
+  .grid-swatch span{background:var(--accent); opacity:0.55; border-radius:2px;}
+
+  .field{display:flex; flex-direction:column; gap:5px; margin-bottom:10px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{font-size:12px; color:var(--muted); display:flex; justify-content:space-between;}
+  .field input[type="text"],
+  .field input[type="url"],
+  .field textarea{
+    padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--ink); font-size:13px; width:100%;
+  }
+  .field input[type="color"]{
+    width:100%; height:34px; padding:2px; border-radius:8px; border:1px solid var(--line);
+    background:var(--surface-2); cursor:pointer;
+  }
+  .counter{font-variant-numeric:tabular-nums; font-family:var(--font-mono); font-size:11px;}
+  .counter.warn{color:var(--warn);}
+  .counter.danger{color:var(--danger);}
+
+  .bg-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;}
+  .btn{
+    appearance:none; border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+    border-radius:9px; padding:8px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn.full{width:100%;}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+  .btn.primary:hover{filter:brightness(1.04);}
+  .btn.ghost{background:transparent;}
+  .btn.danger-text{color:var(--danger); border-color:transparent; background:transparent; padding:4px 6px;}
+  .btn[disabled]{opacity:0.45; cursor:not-allowed;}
+  .file-btn{position:relative; overflow:hidden;}
+  .file-btn input[type="file"]{
+    position:absolute; inset:0; opacity:0; cursor:pointer;
+  }
+
+  .areas-list{list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .area-row{
+    display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:9px;
+    border:1px solid var(--line); background:var(--surface-2); cursor:pointer; font-size:12.5px;
+  }
+  .area-row.is-active{border-color:var(--accent); background:var(--accent-soft);}
+  .area-row .idx{font-family:var(--font-mono); color:var(--muted); width:16px; text-align:right;}
+  .area-row .lbl{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pill{
+    font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
+    padding:2px 6px; border-radius:999px; white-space:nowrap;
+  }
+  .pill.type-message{background:#DCEBFF; color:#1D4E8F;}
+  .pill.type-postback{background:#FBE6C6; color:#8A5B08;}
+  .pill.type-uri{background:#F0DBFB; color:#6E2E92;}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .pill.type-message{background:#173654; color:#9CC4FF;} }
+  :root[data-theme="dark"] .pill.type-message{background:#173654; color:#9CC4FF;}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .pill.type-postback{background:#4A3609; color:#F5CE84;} }
+  :root[data-theme="dark"] .pill.type-postback{background:#4A3609; color:#F5CE84;}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .pill.type-uri{background:#3B1E4C; color:#E3B6FF;} }
+  :root[data-theme="dark"] .pill.type-uri{background:#3B1E4C; color:#E3B6FF;}
+  .empty-count{font-size:11.5px; color:var(--muted); margin-top:8px;}
+
+  /* ---------- canvas ---------- */
+  .canvas-wrap{
+    padding:18px; display:flex; flex-direction:column; align-items:center; gap:10px;
+    overflow-x:auto;
+  }
+  .canvas-meta{
+    display:flex; justify-content:space-between; width:100%; max-width:900px;
+    font-size:11.5px; color:var(--muted); font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+  }
+  .canvas-hint{font-size:11.5px; color:var(--muted); max-width:900px; width:100%;}
+  #canvas{
+    position:relative; border-radius:6px; border:1px solid var(--line);
+    background-color:#0B3B21; background-size:cover; background-position:center;
+    touch-action:none; cursor:crosshair; flex-shrink:0;
+  }
+  .area-box{
+    position:absolute; border-radius:4px; border:1px solid rgba(255,255,255,0.35);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    cursor:grab; user-select:none; text-align:center; padding:4px; overflow:hidden;
+  }
+  .area-box.is-selected{outline:2px solid var(--accent); outline-offset:2px; z-index:2;}
+  .area-box .area-icon{font-size:20px; line-height:1;}
+  .area-box .area-label{font-size:11px; font-weight:600; line-height:1.2; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .area-box .area-type-badge{
+    position:absolute; top:3px; left:4px; font-size:8px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.02em; background:rgba(0,0,0,0.35); color:#fff; padding:1px 5px; border-radius:999px;
+  }
+  .resize-handle{
+    position:absolute; width:14px; height:14px; margin:-7px 0 0 -7px;
+    background:var(--accent); border:2px solid var(--surface); border-radius:50%;
+    cursor:nwse-resize; z-index:3;
+  }
+
+  /* ---------- inspector ---------- */
+  .inspector{padding:16px; display:flex; flex-direction:column; gap:14px;}
+  .inspector-empty{
+    color:var(--muted); font-size:12.5px; line-height:1.6; padding:12px 4px;
+  }
+  .inspector-head{display:flex; justify-content:space-between; align-items:center;}
+  .inspector-head h2{font-size:13px; font-weight:700;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .field input.mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+
+  /* ---------- footer / export ---------- */
+  .exportbar{
+    display:grid; grid-template-columns:1fr 260px; gap:16px;
+    padding:16px 24px 24px;
+  }
+  @media (max-width: 980px){ .exportbar{grid-template-columns:1fr;} }
+  .json-panel{padding:14px; display:flex; flex-direction:column; gap:8px; min-width:0;}
+  .json-head{display:flex; justify-content:space-between; align-items:center;}
+  .json-head span{font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
+  .json-actions{display:flex; gap:6px;}
+  pre#jsonPreview{
+    margin:0; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+    padding:12px; font-family:var(--font-mono); font-size:11.5px; line-height:1.55;
+    max-height:220px; overflow:auto; color:var(--ink);
+  }
+  .export-panel{padding:14px; display:flex; flex-direction:column; gap:10px; align-items:stretch;}
+  .export-panel .hint{font-size:11.5px; color:var(--muted); line-height:1.5; margin:0;}
+  .png-preview{display:none; flex-direction:column; gap:6px;}
+  .png-preview.is-visible{display:flex;}
+  .png-preview img{width:100%; border-radius:8px; border:1px solid var(--line);}
+  .png-preview p{margin:0; font-size:11px; color:var(--muted);}
+
+  /* ---------- toast ---------- */
+  #toastHost{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:100; display:flex; flex-direction:column; gap:8px; align-items:center;}
+  .toast{
+    background:var(--ink); color:var(--bg); padding:9px 16px; border-radius:999px;
+    font-size:12.5px; box-shadow:var(--shadow); opacity:0; transform:translateY(6px);
+    animation:toast-in 0.18s ease-out forwards;
+  }
+  .toast.error{background:var(--danger); color:#fff;}
+  @keyframes toast-in{ to{opacity:1; transform:translateY(0);} }
+</style>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🍱</span>
+      <div class="brand-text">
+        <h1>Rich Menu Studio</h1>
+        <p>LINEリッチメニューをデザインして、画像とAPI用JSONを書き出す</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <label class="field-inline">
+        サイズ
+        <select id="sizePreset">
+          <option value="full">Full — 2500×1686</option>
+          <option value="compact">Compact — 2500×843</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="toolbox panel">
+      <div class="tb-section">
+        <h2>グリッドから作成</h2>
+        <div class="grid-presets" id="gridPresets"></div>
+      </div>
+
+      <div class="tb-section">
+        <h2>背景</h2>
+        <div class="bg-row">
+          <div class="field" style="margin:0;">
+            <label>塗り色</label>
+            <input type="color" id="bgColor" value="#0B3B21">
+          </div>
+          <div class="field" style="margin:0;">
+            <label>&nbsp;</label>
+            <button class="btn file-btn full" type="button">画像を選ぶ
+              <input type="file" id="bgImageInput" accept="image/*">
+            </button>
+          </div>
+        </div>
+        <button class="btn ghost full" id="clearBgImage" type="button" disabled>画像を削除</button>
+      </div>
+
+      <div class="tb-section">
+        <h2>メニュー設定</h2>
+        <div class="field">
+          <label>内部名 (name)</label>
+          <input type="text" id="menuName" maxlength="300" placeholder="例）メインメニュー">
+        </div>
+        <div class="field">
+          <label>タブに出す文字 (chatBarText) <span class="counter" id="chatBarCounter">0/14</span></label>
+          <input type="text" id="chatBarText" placeholder="例）メニュー">
+        </div>
+      </div>
+
+      <div class="tb-section">
+        <h2>エリア <span class="counter" id="areaCounter">0/20</span></h2>
+        <button class="btn full" id="addAreaBtn" type="button">＋ 新規エリアを追加</button>
+        <ul class="areas-list" id="areasList"></ul>
+        <p class="empty-count" id="areasEmptyHint">キャンバス上をドラッグしてもエリアを作成できます。</p>
+      </div>
+    </aside>
+
+    <main class="canvas-wrap panel">
+      <div class="canvas-meta">
+        <span id="canvasSizeLabel">実寸 2500×1686px</span>
+        <span id="canvasScaleLabel">表示倍率 34%</span>
+      </div>
+      <div id="canvas"></div>
+      <p class="canvas-hint">空いている場所をドラッグして新規エリアを作成、エリアをドラッグで移動、右下の丸をドラッグでリサイズできます。</p>
+    </main>
+
+    <aside class="inspector panel" id="inspector"></aside>
+  </div>
+
+  <div class="exportbar">
+    <section class="json-panel panel">
+      <div class="json-head">
+        <span>richmenu.json プレビュー</span>
+        <div class="json-actions">
+          <button class="btn ghost" id="copyJsonBtn" type="button">コピー</button>
+          <button class="btn ghost" id="downloadJsonBtn" type="button">ダウンロード</button>
+        </div>
+      </div>
+      <pre id="jsonPreview"><code></code></pre>
+    </section>
+
+    <section class="export-panel panel">
+      <button class="btn primary full" id="exportPngBtn" type="button">PNGを書き出す</button>
+      <p class="hint" id="exportHint">Messaging API の Rich Menu 作成エンドポイントにそのまま渡せる形式で書き出します。</p>
+      <div class="png-preview" id="pngPreview">
+        <img id="pngPreviewImg" alt="書き出したリッチメニュー画像のプレビュー">
+        <p id="pngPreviewHint"></p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var MIN_SIZE = 24;
+  var DISPLAY_WIDTH = 860;
+  var MAX_AREAS = 20;
+  var SIZES = {
+    full: { width: 2500, height: 1686, label: "Full — 2500×1686" },
+    compact: { width: 2500, height: 843, label: "Compact — 2500×843" }
+  };
+
+  var state = {
+    size: "full",
+    width: SIZES.full.width,
+    height: SIZES.full.height,
+    name: "メインメニュー",
+    chatBarText: "メニュー",
+    bgColor: "#0B3B21",
+    bgImage: null,
+    areas: [],
+    selectedId: null
+  };
+
+  var dragState = null;
+  var idCounter = 1;
+  var downloadsApi = null;
+
+  // ---------- element refs ----------
+  var el = {
+    sizePreset: document.getElementById("sizePreset"),
+    canvas: document.getElementById("canvas"),
+    canvasSizeLabel: document.getElementById("canvasSizeLabel"),
+    gridPresets: document.getElementById("gridPresets"),
+    bgColor: document.getElementById("bgColor"),
+    bgImageInput: document.getElementById("bgImageInput"),
+    clearBgImage: document.getElementById("clearBgImage"),
+    menuName: document.getElementById("menuName"),
+    chatBarText: document.getElementById("chatBarText"),
+    chatBarCounter: document.getElementById("chatBarCounter"),
+    areaCounter: document.getElementById("areaCounter"),
+    addAreaBtn: document.getElementById("addAreaBtn"),
+    areasList: document.getElementById("areasList"),
+    areasEmptyHint: document.getElementById("areasEmptyHint"),
+    inspector: document.getElementById("inspector"),
+    jsonPreview: document.querySelector("#jsonPreview code"),
+    copyJsonBtn: document.getElementById("copyJsonBtn"),
+    downloadJsonBtn: document.getElementById("downloadJsonBtn"),
+    exportPngBtn: document.getElementById("exportPngBtn"),
+    pngPreview: document.getElementById("pngPreview"),
+    pngPreviewImg: document.getElementById("pngPreviewImg"),
+    pngPreviewHint: document.getElementById("pngPreviewHint"),
+    toastHost: document.getElementById("toastHost")
+  };
+
+  function scale(){ return DISPLAY_WIDTH / state.width; }
+  function clampNum(v, min, max){ return Math.min(Math.max(v, min), max); }
+  function escapeHtml(str){
+    return String(str || "").replace(/[&<>"']/g, function(c){
+      return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c];
+    });
+  }
+  function uid(){ return "a" + (idCounter++); }
+
+  function findArea(id){
+    for (var i = 0; i < state.areas.length; i += 1) {
+      if (state.areas[i].id === id) return state.areas[i];
+    }
+    return null;
+  }
+
+  function actionTypeLabel(type){
+    if (type === "postback") return "Postback";
+    if (type === "uri") return "URI";
+    return "Message";
+  }
+
+  function showToast(message, tone){
+    var toast = document.createElement("div");
+    toast.className = "toast" + (tone === "error" ? " error" : "");
+    toast.textContent = message;
+    el.toastHost.appendChild(toast);
+    setTimeout(function(){
+      toast.style.transition = "opacity 0.2s ease";
+      toast.style.opacity = "0";
+      setTimeout(function(){ toast.remove(); }, 220);
+    }, 2600);
+  }
+
+  function downloadErrorMessage(err){
+    var code = err && err.code;
+    switch (code) {
+      case "declined": return "保存がキャンセルされました";
+      case "rate_limited": return "少し時間をおいてから、もう一度お試しください";
+      case "too_large": return "ファイルサイズが大きすぎます(16MB上限)";
+      case "rejected_extension":
+      case "extension_not_enabled": return "この形式のファイルは保存できません";
+      default: return "保存に失敗しました: " + (err && err.message ? err.message : String(err));
+    }
+  }
+
+  // ---------- default factories ----------
+  function createDefaultArea(x, y, w, h){
+    var n = state.areas.length + 1;
+    return {
+      id: uid(),
+      x: x, y: y, w: w, h: h,
+      label: "エリア" + n,
+      icon: "",
+      bgColor: "#1B7A43",
+      textColor: "#FFFFFF",
+      actionType: "message",
+      actionValue: "エリア" + n
+    };
+  }
+
+  function addManualArea(){
+    if (state.areas.length >= MAX_AREAS) {
+      showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
+      return;
+    }
+    var w = Math.min(400, state.width);
+    var h = Math.min(400, state.height);
+    var x = clampNum((state.width - w) / 2, 0, state.width - w);
+    var y = clampNum((state.height - h) / 2, 0, state.height - h);
+    var area = createDefaultArea(x, y, w, h);
+    state.areas.push(area);
+    state.selectedId = area.id;
+    render();
+  }
+
+  function generateGrid(rows, cols){
+    var count = rows * cols;
+    if (count > MAX_AREAS) {
+      showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
+      return;
+    }
+    var cellW = Math.floor(state.width / cols);
+    var cellH = Math.floor(state.height / rows);
+    var areas = [];
+    var n = 1;
+    for (var r = 0; r < rows; r += 1) {
+      for (var c = 0; c < cols; c += 1) {
+        areas.push({
+          id: uid(),
+          x: c * cellW,
+          y: r * cellH,
+          w: cellW,
+          h: cellH,
+          label: "エリア" + n,
+          icon: "",
+          bgColor: n % 2 === 0 ? "#0F5C33" : "#1B7A43",
+          textColor: "#FFFFFF",
+          actionType: "message",
+          actionValue: "エリア" + n
+        });
+        n += 1;
+      }
+    }
+    state.areas = areas;
+    state.selectedId = null;
+    render();
+    showToast(rows + "×" + cols + " のグリッドを作成しました");
+  }
+
+  function deleteArea(id){
+    state.areas = state.areas.filter(function(a){ return a.id !== id; });
+    if (state.selectedId === id) state.selectedId = null;
+    render();
+  }
+
+  // ---------- size preset ----------
+  function applySizePreset(key){
+    var preset = SIZES[key];
+    state.size = key;
+    state.width = preset.width;
+    state.height = preset.height;
+    state.areas = [];
+    state.selectedId = null;
+    render();
+  }
+
+  // ---------- pointer interactions ----------
+  function canvasPointToReal(e){
+    var rect = el.canvas.getBoundingClientRect();
+    return {
+      x: clampNum((e.clientX - rect.left) / scale(), 0, state.width),
+      y: clampNum((e.clientY - rect.top) / scale(), 0, state.height)
+    };
+  }
+
+  function onCanvasPointerDown(e){
+    if (e.target.closest('[data-role="area"]') || e.target.closest('[data-role="handle"]')) return;
+    if (state.areas.length >= MAX_AREAS) {
+      showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
+      return;
+    }
+    var p = canvasPointToReal(e);
+    var area = createDefaultArea(p.x, p.y, 0, 0);
+    state.areas.push(area);
+    state.selectedId = area.id;
+    dragState = { mode: "create", id: area.id, originX: p.x, originY: p.y };
+    el.canvas.setPointerCapture(e.pointerId);
+    render();
+  }
+
+  function onAreaPointerDown(e){
+    e.stopPropagation();
+    var id = e.currentTarget.dataset.id;
+    var area = findArea(id);
+    if (!area) return;
+    state.selectedId = id;
+    var p = canvasPointToReal(e);
+    dragState = {
+      mode: "move", id: id, startX: p.x, startY: p.y,
+      startAreaX: area.x, startAreaY: area.y
+    };
+    el.canvas.setPointerCapture(e.pointerId);
+    render();
+  }
+
+  function onHandlePointerDown(e){
+    e.stopPropagation();
+    var id = e.currentTarget.dataset.id;
+    state.selectedId = id;
+    dragState = { mode: "resize", id: id };
+    el.canvas.setPointerCapture(e.pointerId);
+    render();
+  }
+
+  function onCanvasPointerMove(e){
+    if (!dragState) return;
+    var area = findArea(dragState.id);
+    if (!area) return;
+    var p = canvasPointToReal(e);
+
+    if (dragState.mode === "create") {
+      area.x = Math.min(dragState.originX, p.x);
+      area.y = Math.min(dragState.originY, p.y);
+      area.w = Math.abs(p.x - dragState.originX);
+      area.h = Math.abs(p.y - dragState.originY);
+    } else if (dragState.mode === "move") {
+      area.x = clampNum(dragState.startAreaX + (p.x - dragState.startX), 0, state.width - area.w);
+      area.y = clampNum(dragState.startAreaY + (p.y - dragState.startY), 0, state.height - area.h);
+    } else if (dragState.mode === "resize") {
+      area.w = clampNum(p.x - area.x, MIN_SIZE, state.width - area.x);
+      area.h = clampNum(p.y - area.y, MIN_SIZE, state.height - area.y);
+    }
+    render();
+  }
+
+  function onCanvasPointerUp(){
+    if (!dragState) return;
+    var area = findArea(dragState.id);
+    if (area && dragState.mode === "create" && (area.w < MIN_SIZE || area.h < MIN_SIZE)) {
+      area.w = Math.min(300, state.width);
+      area.h = Math.min(300, state.height);
+      area.x = clampNum(area.x, 0, state.width - area.w);
+      area.y = clampNum(area.y, 0, state.height - area.h);
+    }
+    dragState = null;
+    render();
+  }
+
+  document.addEventListener("keydown", function(e){
+    if (e.key !== "Delete" && e.key !== "Backspace") return;
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (state.selectedId) {
+      e.preventDefault();
+      deleteArea(state.selectedId);
+    }
+  });
+
+  // ---------- background image ----------
+  function readImageAsDataUrl(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(){ resolve(reader.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ---------- render ----------
+  function render(){
+    renderTopbar();
+    renderToolbox();
+    renderCanvas();
+    renderInspector();
+    renderJsonPreview();
+  }
+
+  function renderTopbar(){
+    el.sizePreset.value = state.size;
+  }
+
+  function renderToolbox(){
+    el.bgColor.value = state.bgColor;
+    el.clearBgImage.disabled = !state.bgImage;
+    el.menuName.value = state.name;
+    el.chatBarText.value = state.chatBarText;
+
+    var chatLen = state.chatBarText.length;
+    el.chatBarCounter.textContent = chatLen + "/14";
+    el.chatBarCounter.className = "counter" + (chatLen > 14 ? " danger" : chatLen > 10 ? " warn" : "");
+
+    el.areaCounter.textContent = state.areas.length + "/" + MAX_AREAS;
+    el.addAreaBtn.disabled = state.areas.length >= MAX_AREAS;
+    el.areasEmptyHint.style.display = state.areas.length === 0 ? "block" : "none";
+
+    el.areasList.innerHTML = "";
+    state.areas.forEach(function(area, index){
+      var li = document.createElement("li");
+      li.className = "area-row" + (area.id === state.selectedId ? " is-active" : "");
+      li.innerHTML =
+        '<span class="idx">' + (index + 1) + '</span>' +
+        '<span class="lbl">' + (area.icon ? escapeHtml(area.icon) + " " : "") + escapeHtml(area.label || "(無題)") + '</span>' +
+        '<span class="pill type-' + area.actionType + '">' + actionTypeLabel(area.actionType) + '</span>' +
+        '<button class="btn danger-text" type="button" title="削除" data-del="' + area.id + '">✕</button>';
+      li.addEventListener("click", function(e){
+        if (e.target.closest("[data-del]")) return;
+        state.selectedId = area.id;
+        render();
+      });
+      li.querySelector("[data-del]").addEventListener("click", function(e){
+        e.stopPropagation();
+        deleteArea(area.id);
+      });
+      el.areasList.appendChild(li);
+    });
+  }
+
+  function renderCanvas(){
+    var s = scale();
+    el.canvas.style.width = Math.round(state.width * s) + "px";
+    el.canvas.style.height = Math.round(state.height * s) + "px";
+    el.canvas.style.backgroundImage = state.bgImage ? "url(" + state.bgImage + ")" : "none";
+    el.canvas.style.backgroundColor = state.bgImage ? "transparent" : state.bgColor;
+    el.canvasSizeLabel.textContent = "実寸 " + state.width + "×" + state.height + "px";
+
+    el.canvas.innerHTML = "";
+    state.areas.forEach(function(area){
+      var box = document.createElement("div");
+      box.className = "area-box" + (area.id === state.selectedId ? " is-selected" : "");
+      box.dataset.role = "area";
+      box.dataset.id = area.id;
+      box.style.left = Math.round(area.x * s) + "px";
+      box.style.top = Math.round(area.y * s) + "px";
+      box.style.width = Math.round(area.w * s) + "px";
+      box.style.height = Math.round(area.h * s) + "px";
+      box.style.background = area.bgColor;
+      box.style.color = area.textColor;
+      box.innerHTML =
+        '<span class="area-type-badge">' + actionTypeLabel(area.actionType) + '</span>' +
+        (area.icon ? '<span class="area-icon">' + escapeHtml(area.icon) + '</span>' : "") +
+        '<span class="area-label">' + escapeHtml(area.label || "") + '</span>';
+      box.addEventListener("pointerdown", onAreaPointerDown);
+      el.canvas.appendChild(box);
+
+      if (area.id === state.selectedId) {
+        var handle = document.createElement("div");
+        handle.className = "resize-handle";
+        handle.dataset.role = "handle";
+        handle.dataset.id = area.id;
+        handle.style.left = Math.round((area.x + area.w) * s) + "px";
+        handle.style.top = Math.round((area.y + area.h) * s) + "px";
+        handle.addEventListener("pointerdown", onHandlePointerDown);
+        el.canvas.appendChild(handle);
+      }
+    });
+  }
+
+  function renderInspector(){
+    var area = state.selectedId ? findArea(state.selectedId) : null;
+    if (!area) {
+      el.inspector.innerHTML = '<p class="inspector-empty">エリアを選択すると、ラベル・色・タップ時のアクションを編集できます。<br><br>キャンバス上の空いている場所をドラッグすると新しいエリアを作成できます。</p>';
+      return;
+    }
+
+    var actionValueLabel = area.actionType === "uri" ? "リンク先 URL" :
+      area.actionType === "postback" ? "postback data" : "送信するテキスト";
+    var actionValueType = area.actionType === "uri" ? "url" : "text";
+
+    el.inspector.innerHTML =
+      '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">🗑 削除</button></div>' +
+      '<div class="field"><label>ラベル</label><input type="text" id="fArea_label" value="' + escapeHtml(area.label) + '"></div>' +
+      '<div class="field"><label>アイコン(絵文字)</label><input type="text" id="fArea_icon" value="' + escapeHtml(area.icon) + '" placeholder="任意"></div>' +
+      '<div class="grid2">' +
+      '<div class="field"><label>背景色</label><input type="color" id="fArea_bg" value="' + area.bgColor + '"></div>' +
+      '<div class="field"><label>文字色</label><input type="color" id="fArea_fg" value="' + area.textColor + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>アクション種別</label><select id="fArea_type">' +
+      '<option value="message"' + (area.actionType === "message" ? " selected" : "") + '>message(発言する)</option>' +
+      '<option value="postback"' + (area.actionType === "postback" ? " selected" : "") + '>postback(裏でデータ送信)</option>' +
+      '<option value="uri"' + (area.actionType === "uri" ? " selected" : "") + '>uri(リンクを開く)</option>' +
+      '</select></div>' +
+      '<div class="field"><label>' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"></div>' +
+      '<div class="grid2">' +
+      '<div class="field"><label>X</label><input class="mono" type="text" inputmode="numeric" id="fArea_x" value="' + Math.round(area.x) + '"></div>' +
+      '<div class="field"><label>Y</label><input class="mono" type="text" inputmode="numeric" id="fArea_y" value="' + Math.round(area.y) + '"></div>' +
+      '<div class="field"><label>幅</label><input class="mono" type="text" inputmode="numeric" id="fArea_w" value="' + Math.round(area.w) + '"></div>' +
+      '<div class="field"><label>高さ</label><input class="mono" type="text" inputmode="numeric" id="fArea_h" value="' + Math.round(area.h) + '"></div>' +
+      '</div>';
+
+    document.getElementById("deleteAreaBtn").addEventListener("click", function(){ deleteArea(area.id); });
+    bindText("fArea_label", function(v){ area.label = v; });
+    bindText("fArea_icon", function(v){ area.icon = v; });
+    bindText("fArea_value", function(v){ area.actionValue = v; });
+    document.getElementById("fArea_bg").addEventListener("input", function(){ area.bgColor = this.value; renderCanvas(); });
+    document.getElementById("fArea_fg").addEventListener("input", function(){ area.textColor = this.value; renderCanvas(); });
+    document.getElementById("fArea_type").addEventListener("change", function(){ area.actionType = this.value; render(); });
+    bindNumber("fArea_x", function(v){ area.x = clampNum(v, 0, state.width - area.w); });
+    bindNumber("fArea_y", function(v){ area.y = clampNum(v, 0, state.height - area.h); });
+    bindNumber("fArea_w", function(v){ area.w = clampNum(v, MIN_SIZE, state.width - area.x); });
+    bindNumber("fArea_h", function(v){ area.h = clampNum(v, MIN_SIZE, state.height - area.y); });
+  }
+
+  function bindText(id, apply){
+    var input = document.getElementById(id);
+    input.addEventListener("input", function(){
+      apply(this.value);
+      renderCanvas();
+      renderToolbox();
+      renderJsonPreview();
+    });
+  }
+
+  function bindNumber(id, apply){
+    var input = document.getElementById(id);
+    input.addEventListener("change", function(){
+      var v = parseInt(this.value, 10);
+      if (isNaN(v)) v = 0;
+      apply(v);
+      render();
+    });
+  }
+
+  function buildRichMenuObject(){
+    return {
+      size: { width: state.width, height: state.height },
+      selected: false,
+      name: state.name || "richmenu",
+      chatBarText: (state.chatBarText || "メニュー").slice(0, 14),
+      areas: state.areas.map(function(a){
+        return {
+          bounds: { x: Math.round(a.x), y: Math.round(a.y), width: Math.round(a.w), height: Math.round(a.h) },
+          action: buildAction(a)
+        };
+      })
+    };
+  }
+
+  function buildAction(a){
+    if (a.actionType === "postback") {
+      return { type: "postback", data: a.actionValue || "", displayText: a.label || undefined };
+    }
+    if (a.actionType === "uri") {
+      return { type: "uri", uri: a.actionValue || "https://" };
+    }
+    return { type: "message", text: a.actionValue || a.label || "" };
+  }
+
+  function renderJsonPreview(){
+    el.jsonPreview.textContent = JSON.stringify(buildRichMenuObject(), null, 2);
+  }
+
+  // ---------- clipboard ----------
+  function selectPreformattedText(node){
+    var range = document.createRange();
+    range.selectNodeContents(node);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  async function copyJsonToClipboard(){
+    var text = JSON.stringify(buildRichMenuObject(), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("JSON をコピーしました");
+    } catch (err) {
+      selectPreformattedText(document.getElementById("jsonPreview"));
+      showToast("自動コピーできないため、テキストを選択状態にしました(⌘/Ctrl+Cでコピー)");
+    }
+  }
+
+  // ---------- export: json ----------
+  async function downloadJson(){
+    var text = JSON.stringify(buildRichMenuObject(), null, 2);
+    if (downloadsApi) {
+      try {
+        await downloadsApi.save({ filename: sanitizeFilename(state.name) + ".json", data: text });
+        showToast("richmenu.json を保存しました");
+      } catch (err) {
+        showToast(downloadErrorMessage(err), "error");
+      }
+    } else if (triggerBrowserDownload(sanitizeFilename(state.name) + ".json", text, "application/json")) {
+      showToast("richmenu.json をダウンロードしました");
+    } else {
+      selectPreformattedText(document.getElementById("jsonPreview"));
+      showToast("この環境では自動保存できないため、コピー用に選択状態にしました");
+    }
+  }
+
+  function sanitizeFilename(name){
+    var cleaned = String(name || "richmenu").trim().replace(/[\\/:*?"<>|]+/g, "_");
+    return cleaned || "richmenu";
+  }
+
+  /**
+   * Claude Artifact のサンドボックス外(GitHub Pages など通常のブラウザ)で
+   * 動いている場合向けの素朴なダウンロード手段。
+   * サンドボックス内ではクリックが無効化されるだけで害はない。
+   *
+   * @param {string} filename 保存ファイル名
+   * @param {Blob|string} data 保存内容
+   * @param {string} mime data が文字列のときの MIME タイプ
+   * @returns {boolean} 発火できたか
+   */
+  function triggerBrowserDownload(filename, data, mime){
+    try {
+      var blob = data instanceof Blob ? data : new Blob([data], { type: mime });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  /**
+   * data:image/png;base64,... 形式の文字列を同期的に Blob へ変換します。
+   * fetch(dataUrl) は非同期になり呼び出し側のフォールバック分岐が複雑になるため、
+   * ここでは atob で直接デコードします。
+   *
+   * @param {string} dataUrl data URL 文字列
+   * @returns {Blob}
+   */
+  function dataUrlToBlobSync(dataUrl){
+    var parts = dataUrl.split(",");
+    var mimeMatch = parts[0].match(/:(.*?);/);
+    var mime = mimeMatch ? mimeMatch[1] : "image/png";
+    var binary = atob(parts[1]);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mime });
+  }
+
+  // ---------- export: png ----------
+  function loadImageAsync(src){
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      img.onload = function(){ resolve(img); };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  function drawImageCover(ctx, img, x, y, w, h){
+    var ir = img.width / img.height;
+    var tr = w / h;
+    var sx, sy, sw, sh;
+    if (ir > tr) {
+      sh = img.height;
+      sw = sh * tr;
+      sx = (img.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = img.width;
+      sh = sw / tr;
+      sx = 0;
+      sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  async function renderExportCanvas(){
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (e) { /* ignore */ }
+    }
+    var canvas = document.createElement("canvas");
+    canvas.width = state.width;
+    canvas.height = state.height;
+    var ctx = canvas.getContext("2d");
+
+    if (state.bgImage) {
+      try {
+        var img = await loadImageAsync(state.bgImage);
+        drawImageCover(ctx, img, 0, 0, state.width, state.height);
+      } catch (e) {
+        ctx.fillStyle = state.bgColor;
+        ctx.fillRect(0, 0, state.width, state.height);
+      }
+    } else {
+      ctx.fillStyle = state.bgColor;
+      ctx.fillRect(0, 0, state.width, state.height);
+    }
+
+    state.areas.forEach(function(a){
+      ctx.fillStyle = a.bgColor;
+      ctx.fillRect(a.x, a.y, a.w, a.h);
+      ctx.strokeStyle = "rgba(255,255,255,0.22)";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(a.x + 2, a.y + 2, Math.max(0, a.w - 4), Math.max(0, a.h - 4));
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = a.textColor;
+      var fontSize = Math.max(24, Math.min(64, a.h * 0.14));
+      var cx = a.x + a.w / 2;
+      var cy = a.y + a.h / 2;
+
+      if (a.icon) {
+        ctx.font = Math.round(fontSize * 1.7) + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+        ctx.fillText(a.icon, cx, cy - fontSize * 0.55);
+        ctx.font = "600 " + Math.round(fontSize) + 'px Archivo, sans-serif';
+        ctx.fillText(a.label || "", cx, cy + fontSize * 0.75);
+      } else {
+        ctx.font = "600 " + Math.round(fontSize) + 'px Archivo, sans-serif';
+        ctx.fillText(a.label || "", cx, cy);
+      }
+    });
+
+    return canvas;
+  }
+
+  async function exportPng(){
+    el.exportPngBtn.disabled = true;
+    try {
+      var canvas = await renderExportCanvas();
+      var dataUrl = canvas.toDataURL("image/png");
+      el.pngPreviewImg.src = dataUrl;
+      el.pngPreview.classList.add("is-visible");
+
+      if (downloadsApi) {
+        try {
+          var blob = await (await fetch(dataUrl)).blob();
+          await downloadsApi.save({ filename: sanitizeFilename(state.name) + ".png", data: blob });
+          el.pngPreviewHint.textContent = "保存しました。長押し/右クリックでも保存できます。";
+          showToast("PNG を保存しました");
+        } catch (err) {
+          el.pngPreviewHint.textContent = "自動保存に失敗したため、下の画像を長押し/右クリックして保存してください。";
+          showToast(downloadErrorMessage(err), "error");
+        }
+      } else if (triggerBrowserDownload(sanitizeFilename(state.name) + ".png", dataUrlToBlobSync(dataUrl), "image/png")) {
+        el.pngPreviewHint.textContent = "ダウンロードしました。長押し/右クリックでも保存できます。";
+        showToast("PNG をダウンロードしました");
+      } else {
+        el.pngPreviewHint.textContent = "この環境では自動保存できません。下の画像を長押し/右クリックして保存してください。";
+      }
+    } finally {
+      el.exportPngBtn.disabled = false;
+    }
+  }
+
+  // ---------- static UI: grid presets ----------
+  var GRID_PRESETS = [
+    { rows: 1, cols: 1, label: "全面 1つ" },
+    { rows: 1, cols: 2, label: "1×2" },
+    { rows: 2, cols: 2, label: "2×2" },
+    { rows: 2, cols: 3, label: "2×3" },
+    { rows: 3, cols: 2, label: "3×2" },
+    { rows: 1, cols: 3, label: "1×3" }
+  ];
+
+  function renderGridPresetButtons(){
+    el.gridPresets.innerHTML = "";
+    GRID_PRESETS.forEach(function(p){
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "grid-btn";
+      var swatch = document.createElement("div");
+      swatch.className = "grid-swatch";
+      swatch.style.gridTemplateColumns = "repeat(" + p.cols + ",1fr)";
+      swatch.style.gridTemplateRows = "repeat(" + p.rows + ",1fr)";
+      for (var i = 0; i < p.rows * p.cols; i += 1) {
+        var cell = document.createElement("span");
+        swatch.appendChild(cell);
+      }
+      btn.appendChild(swatch);
+      var text = document.createElement("span");
+      text.textContent = p.label;
+      btn.appendChild(text);
+      btn.addEventListener("click", function(rows, cols){
+        return function(){ generateGrid(rows, cols); };
+      }(p.rows, p.cols));
+      el.gridPresets.appendChild(btn);
+    });
+  }
+
+  // ---------- wire static events ----------
+  el.sizePreset.addEventListener("change", function(){ applySizePreset(this.value); });
+  el.canvas.addEventListener("pointerdown", onCanvasPointerDown);
+  el.canvas.addEventListener("pointermove", onCanvasPointerMove);
+  el.canvas.addEventListener("pointerup", onCanvasPointerUp);
+  el.canvas.addEventListener("pointercancel", onCanvasPointerUp);
+
+  el.bgColor.addEventListener("input", function(){ state.bgColor = this.value; renderCanvas(); });
+  el.bgImageInput.addEventListener("change", async function(){
+    var file = this.files && this.files[0];
+    if (!file) return;
+    state.bgImage = await readImageAsDataUrl(file);
+    render();
+  });
+  el.clearBgImage.addEventListener("click", function(){
+    state.bgImage = null;
+    el.bgImageInput.value = "";
+    render();
+  });
+
+  el.menuName.addEventListener("input", function(){ state.name = this.value; renderJsonPreview(); });
+  el.chatBarText.addEventListener("input", function(){ state.chatBarText = this.value; renderToolbox(); renderJsonPreview(); });
+
+  el.addAreaBtn.addEventListener("click", addManualArea);
+  el.copyJsonBtn.addEventListener("click", copyJsonToClipboard);
+  el.downloadJsonBtn.addEventListener("click", downloadJson);
+  el.exportPngBtn.addEventListener("click", exportPng);
+
+  // ---------- init ----------
+  renderGridPresetButtons();
+  render();
+
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then(function(api){
+      downloadsApi = api;
+    });
+  }
+})();
+</script>
