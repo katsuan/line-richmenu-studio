@@ -87,6 +87,22 @@
     background:var(--surface-2); color:var(--ink); font-size:13px;
   }
 
+  /* ---------- tab bar (menus) ---------- */
+  .tabbar-row{
+    display:flex; align-items:center; gap:10px; padding:10px 24px;
+    background:var(--surface); border-bottom:1px solid var(--line);
+  }
+  .tabbar{display:flex; align-items:center; gap:8px; overflow-x:auto; flex:1;}
+  .tab-chip{
+    display:inline-flex; align-items:center; gap:7px; padding:7px 13px;
+    border-radius:999px; border:1px solid var(--line); background:var(--surface-2);
+    font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; color:var(--ink);
+    flex-shrink:0;
+  }
+  .tab-chip.is-active{background:var(--accent-soft); border-color:var(--accent);}
+  .tab-chip .tab-close{opacity:0.5; font-size:11px; line-height:1;}
+  .tab-chip .tab-close:hover{opacity:1; color:var(--danger);}
+
   /* ---------- workspace grid ---------- */
   .workspace{
     display:grid; grid-template-columns:252px 1fr 288px; gap:16px;
@@ -167,12 +183,15 @@
   .pill.type-message{background:#DCEBFF; color:#1D4E8F;}
   .pill.type-postback{background:#FBE6C6; color:#8A5B08;}
   .pill.type-uri{background:#F0DBFB; color:#6E2E92;}
+  .pill.type-richmenuswitch{background:#DFF5E4; color:#146C36;}
   @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .pill.type-message{background:#173654; color:#9CC4FF;} }
   :root[data-theme="dark"] .pill.type-message{background:#173654; color:#9CC4FF;}
   @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .pill.type-postback{background:#4A3609; color:#F5CE84;} }
   :root[data-theme="dark"] .pill.type-postback{background:#4A3609; color:#F5CE84;}
   @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .pill.type-uri{background:#3B1E4C; color:#E3B6FF;} }
   :root[data-theme="dark"] .pill.type-uri{background:#3B1E4C; color:#E3B6FF;}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .pill.type-richmenuswitch{background:#123A22; color:#7FE3A0;} }
+  :root[data-theme="dark"] .pill.type-richmenuswitch{background:#123A22; color:#7FE3A0;}
   .empty-count{font-size:11.5px; color:var(--muted); margin-top:8px;}
 
   /* ---------- canvas ---------- */
@@ -271,6 +290,11 @@
     </div>
   </header>
 
+  <div class="tabbar-row">
+    <div class="tabbar" id="tabbar"></div>
+    <button class="btn ghost" id="addMenuBtn" type="button">＋ タブを追加</button>
+  </div>
+
   <div class="workspace">
     <aside class="toolbox panel">
       <div class="tb-section">
@@ -304,6 +328,10 @@
         <div class="field">
           <label>タブに出す文字 (chatBarText) <span class="counter" id="chatBarCounter">0/14</span></label>
           <input type="text" id="chatBarText" placeholder="例）メニュー">
+        </div>
+        <div class="field">
+          <label>エイリアス (richMenuAliasId)</label>
+          <input type="text" id="menuAlias" maxlength="32" placeholder="例）tab1">
         </div>
       </div>
 
@@ -364,25 +392,38 @@
     compact: { width: 2500, height: 843, label: "Compact — 2500×843" }
   };
 
+  var idCounter = 1;
+  function uid(){ return "id" + (idCounter++); }
+
   var state = {
-    size: "full",
-    width: SIZES.full.width,
-    height: SIZES.full.height,
-    name: "メインメニュー",
-    chatBarText: "メニュー",
-    bgColor: "#0B3B21",
-    bgImage: null,
-    areas: [],
-    selectedId: null
+    activeMenuIndex: 0,
+    menus: [
+      {
+        id: uid(),
+        alias: "tab1",
+        size: "full",
+        width: SIZES.full.width,
+        height: SIZES.full.height,
+        name: "メインメニュー",
+        chatBarText: "メニュー",
+        bgColor: "#0B3B21",
+        bgImage: null,
+        areas: [],
+        selectedId: null
+      }
+    ]
   };
 
   var dragState = null;
-  var idCounter = 1;
   var downloadsApi = null;
+
+  function activeMenu(){ return state.menus[state.activeMenuIndex]; }
 
   // ---------- element refs ----------
   var el = {
     sizePreset: document.getElementById("sizePreset"),
+    tabbar: document.getElementById("tabbar"),
+    addMenuBtn: document.getElementById("addMenuBtn"),
     canvas: document.getElementById("canvas"),
     canvasSizeLabel: document.getElementById("canvasSizeLabel"),
     gridPresets: document.getElementById("gridPresets"),
@@ -390,6 +431,7 @@
     bgImageInput: document.getElementById("bgImageInput"),
     clearBgImage: document.getElementById("clearBgImage"),
     menuName: document.getElementById("menuName"),
+    menuAlias: document.getElementById("menuAlias"),
     chatBarText: document.getElementById("chatBarText"),
     chatBarCounter: document.getElementById("chatBarCounter"),
     areaCounter: document.getElementById("areaCounter"),
@@ -407,18 +449,25 @@
     toastHost: document.getElementById("toastHost")
   };
 
-  function scale(){ return DISPLAY_WIDTH / state.width; }
+  function scale(){ return DISPLAY_WIDTH / activeMenu().width; }
   function clampNum(v, min, max){ return Math.min(Math.max(v, min), max); }
   function escapeHtml(str){
     return String(str || "").replace(/[&<>"']/g, function(c){
       return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c];
     });
   }
-  function uid(){ return "a" + (idCounter++); }
+
+  function fontWeightCss(w){
+    if (w === "regular") return 500;
+    if (w === "semibold") return 600;
+    if (w === "extrabold") return 800;
+    return 700;
+  }
 
   function findArea(id){
-    for (var i = 0; i < state.areas.length; i += 1) {
-      if (state.areas[i].id === id) return state.areas[i];
+    var areas = activeMenu().areas;
+    for (var i = 0; i < areas.length; i += 1) {
+      if (areas[i].id === id) return areas[i];
     }
     return null;
   }
@@ -426,6 +475,7 @@
   function actionTypeLabel(type){
     if (type === "postback") return "Postback";
     if (type === "uri") return "URI";
+    if (type === "richmenuswitch") return "Switch";
     return "Message";
   }
 
@@ -455,42 +505,52 @@
 
   // ---------- default factories ----------
   function createDefaultArea(x, y, w, h){
-    var n = state.areas.length + 1;
+    var n = activeMenu().areas.length + 1;
     return {
       id: uid(),
       x: x, y: y, w: w, h: h,
       label: "エリア" + n,
       icon: "",
+      image: null,
       bgColor: "#1B7A43",
       textColor: "#FFFFFF",
+      transparent: false,
+      radius: 16,
+      border: "line",
+      fontWeight: "bold",
+      fontSize: null,
+      textShadow: false,
       actionType: "message",
-      actionValue: "エリア" + n
+      actionValue: "エリア" + n,
+      targetMenuId: null
     };
   }
 
   function addManualArea(){
-    if (state.areas.length >= MAX_AREAS) {
+    var menu = activeMenu();
+    if (menu.areas.length >= MAX_AREAS) {
       showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
       return;
     }
-    var w = Math.min(400, state.width);
-    var h = Math.min(400, state.height);
-    var x = clampNum((state.width - w) / 2, 0, state.width - w);
-    var y = clampNum((state.height - h) / 2, 0, state.height - h);
+    var w = Math.min(400, menu.width);
+    var h = Math.min(400, menu.height);
+    var x = clampNum((menu.width - w) / 2, 0, menu.width - w);
+    var y = clampNum((menu.height - h) / 2, 0, menu.height - h);
     var area = createDefaultArea(x, y, w, h);
-    state.areas.push(area);
-    state.selectedId = area.id;
+    menu.areas.push(area);
+    menu.selectedId = area.id;
     render();
   }
 
   function generateGrid(rows, cols){
+    var menu = activeMenu();
     var count = rows * cols;
     if (count > MAX_AREAS) {
       showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
       return;
     }
-    var cellW = Math.floor(state.width / cols);
-    var cellH = Math.floor(state.height / rows);
+    var cellW = Math.floor(menu.width / cols);
+    var cellH = Math.floor(menu.height / rows);
     var areas = [];
     var n = 1;
     for (var r = 0; r < rows; r += 1) {
@@ -503,56 +563,124 @@
           h: cellH,
           label: "エリア" + n,
           icon: "",
+          image: null,
           bgColor: n % 2 === 0 ? "#0F5C33" : "#1B7A43",
           textColor: "#FFFFFF",
+          transparent: false,
+          radius: 16,
+          border: "line",
+          fontWeight: "bold",
+          fontSize: null,
+          textShadow: false,
           actionType: "message",
-          actionValue: "エリア" + n
+          actionValue: "エリア" + n,
+          targetMenuId: null
         });
         n += 1;
       }
     }
-    state.areas = areas;
-    state.selectedId = null;
+    menu.areas = areas;
+    menu.selectedId = null;
     render();
     showToast(rows + "×" + cols + " のグリッドを作成しました");
   }
 
   function deleteArea(id){
-    state.areas = state.areas.filter(function(a){ return a.id !== id; });
-    if (state.selectedId === id) state.selectedId = null;
+    var menu = activeMenu();
+    menu.areas = menu.areas.filter(function(a){ return a.id !== id; });
+    if (menu.selectedId === id) menu.selectedId = null;
+    render();
+  }
+
+  // ---------- menus (tabs) ----------
+  function createDefaultMenu(){
+    var n = state.menus.length + 1;
+    return {
+      id: uid(),
+      alias: "tab" + n,
+      size: "full",
+      width: SIZES.full.width,
+      height: SIZES.full.height,
+      name: "メニュー" + n,
+      chatBarText: "メニュー" + n,
+      bgColor: "#0B3B21",
+      bgImage: null,
+      areas: [],
+      selectedId: null
+    };
+  }
+
+  function addMenu(){
+    var menu = createDefaultMenu();
+    state.menus.push(menu);
+    state.activeMenuIndex = state.menus.length - 1;
+    render();
+    showToast("タブを追加しました");
+  }
+
+  function switchMenu(index){
+    state.activeMenuIndex = clampNum(index, 0, state.menus.length - 1);
+    render();
+  }
+
+  function deleteMenu(id){
+    if (state.menus.length <= 1) {
+      showToast("最後のタブは削除できません", "error");
+      return;
+    }
+    var idx = -1;
+    for (var i = 0; i < state.menus.length; i += 1) {
+      if (state.menus[i].id === id) { idx = i; break; }
+    }
+    if (idx === -1) return;
+
+    state.menus.splice(idx, 1);
+    state.menus.forEach(function(m){
+      m.areas.forEach(function(a){
+        if (a.actionType === "richmenuswitch" && a.targetMenuId === id) {
+          a.targetMenuId = null;
+        }
+      });
+    });
+    if (state.activeMenuIndex >= state.menus.length) {
+      state.activeMenuIndex = state.menus.length - 1;
+    }
     render();
   }
 
   // ---------- size preset ----------
   function applySizePreset(key){
     var preset = SIZES[key];
-    state.size = key;
-    state.width = preset.width;
-    state.height = preset.height;
-    state.areas = [];
-    state.selectedId = null;
+    var menu = activeMenu();
+    menu.size = key;
+    menu.width = preset.width;
+    menu.height = preset.height;
+    menu.areas = [];
+    menu.selectedId = null;
     render();
   }
 
   // ---------- pointer interactions ----------
   function canvasPointToReal(e){
+    var menu = activeMenu();
     var rect = el.canvas.getBoundingClientRect();
     return {
-      x: clampNum((e.clientX - rect.left) / scale(), 0, state.width),
-      y: clampNum((e.clientY - rect.top) / scale(), 0, state.height)
+      x: clampNum((e.clientX - rect.left) / scale(), 0, menu.width),
+      y: clampNum((e.clientY - rect.top) / scale(), 0, menu.height)
     };
   }
 
   function onCanvasPointerDown(e){
     if (e.target.closest('[data-role="area"]') || e.target.closest('[data-role="handle"]')) return;
-    if (state.areas.length >= MAX_AREAS) {
+    var menu = activeMenu();
+    if (menu.areas.length >= MAX_AREAS) {
       showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
       return;
     }
     var p = canvasPointToReal(e);
     var area = createDefaultArea(p.x, p.y, 0, 0);
-    state.areas.push(area);
-    state.selectedId = area.id;
+    menu.areas.push(area);
+    menu.selectedId = area.id;
     dragState = { mode: "create", id: area.id, originX: p.x, originY: p.y };
     el.canvas.setPointerCapture(e.pointerId);
     render();
@@ -563,7 +691,7 @@
     var id = e.currentTarget.dataset.id;
     var area = findArea(id);
     if (!area) return;
-    state.selectedId = id;
+    activeMenu().selectedId = id;
     var p = canvasPointToReal(e);
     dragState = {
       mode: "move", id: id, startX: p.x, startY: p.y,
@@ -576,7 +704,7 @@
   function onHandlePointerDown(e){
     e.stopPropagation();
     var id = e.currentTarget.dataset.id;
-    state.selectedId = id;
+    activeMenu().selectedId = id;
     dragState = { mode: "resize", id: id };
     el.canvas.setPointerCapture(e.pointerId);
     render();
@@ -584,6 +712,7 @@
 
   function onCanvasPointerMove(e){
     if (!dragState) return;
+    var menu = activeMenu();
     var area = findArea(dragState.id);
     if (!area) return;
     var p = canvasPointToReal(e);
@@ -594,23 +723,24 @@
       area.w = Math.abs(p.x - dragState.originX);
       area.h = Math.abs(p.y - dragState.originY);
     } else if (dragState.mode === "move") {
-      area.x = clampNum(dragState.startAreaX + (p.x - dragState.startX), 0, state.width - area.w);
-      area.y = clampNum(dragState.startAreaY + (p.y - dragState.startY), 0, state.height - area.h);
+      area.x = clampNum(dragState.startAreaX + (p.x - dragState.startX), 0, menu.width - area.w);
+      area.y = clampNum(dragState.startAreaY + (p.y - dragState.startY), 0, menu.height - area.h);
     } else if (dragState.mode === "resize") {
-      area.w = clampNum(p.x - area.x, MIN_SIZE, state.width - area.x);
-      area.h = clampNum(p.y - area.y, MIN_SIZE, state.height - area.y);
+      area.w = clampNum(p.x - area.x, MIN_SIZE, menu.width - area.x);
+      area.h = clampNum(p.y - area.y, MIN_SIZE, menu.height - area.y);
     }
     render();
   }
 
   function onCanvasPointerUp(){
     if (!dragState) return;
+    var menu = activeMenu();
     var area = findArea(dragState.id);
     if (area && dragState.mode === "create" && (area.w < MIN_SIZE || area.h < MIN_SIZE)) {
-      area.w = Math.min(300, state.width);
-      area.h = Math.min(300, state.height);
-      area.x = clampNum(area.x, 0, state.width - area.w);
-      area.y = clampNum(area.y, 0, state.height - area.h);
+      area.w = Math.min(300, menu.width);
+      area.h = Math.min(300, menu.height);
+      area.x = clampNum(area.x, 0, menu.width - area.w);
+      area.y = clampNum(area.y, 0, menu.height - area.h);
     }
     dragState = null;
     render();
@@ -620,13 +750,14 @@
     if (e.key !== "Delete" && e.key !== "Backspace") return;
     var tag = document.activeElement && document.activeElement.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-    if (state.selectedId) {
+    var menu = activeMenu();
+    if (menu.selectedId) {
       e.preventDefault();
-      deleteArea(state.selectedId);
+      deleteArea(menu.selectedId);
     }
   });
 
-  // ---------- background image ----------
+  // ---------- image helpers ----------
   function readImageAsDataUrl(file){
     return new Promise(function(resolve, reject){
       var reader = new FileReader();
@@ -639,6 +770,7 @@
   // ---------- render ----------
   function render(){
     renderTopbar();
+    renderTabs();
     renderToolbox();
     renderCanvas();
     renderInspector();
@@ -646,27 +778,52 @@
   }
 
   function renderTopbar(){
-    el.sizePreset.value = state.size;
+    el.sizePreset.value = activeMenu().size;
+  }
+
+  function renderTabs(){
+    el.tabbar.innerHTML = "";
+    state.menus.forEach(function(menu, index){
+      var chip = document.createElement("div");
+      chip.className = "tab-chip" + (index === state.activeMenuIndex ? " is-active" : "");
+      chip.innerHTML =
+        '<span class="tab-label">' + escapeHtml(menu.name || ("メニュー" + (index + 1))) + '</span>' +
+        (state.menus.length > 1 ? '<span class="tab-close" data-close="' + menu.id + '" title="このタブを削除">✕</span>' : "");
+      chip.addEventListener("click", function(e){
+        if (e.target.closest("[data-close]")) return;
+        switchMenu(index);
+      });
+      var closeBtn = chip.querySelector("[data-close]");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", function(e){
+          e.stopPropagation();
+          deleteMenu(menu.id);
+        });
+      }
+      el.tabbar.appendChild(chip);
+    });
   }
 
   function renderToolbox(){
-    el.bgColor.value = state.bgColor;
-    el.clearBgImage.disabled = !state.bgImage;
-    el.menuName.value = state.name;
-    el.chatBarText.value = state.chatBarText;
+    var menu = activeMenu();
+    el.bgColor.value = menu.bgColor;
+    el.clearBgImage.disabled = !menu.bgImage;
+    el.menuName.value = menu.name;
+    el.menuAlias.value = menu.alias;
+    el.chatBarText.value = menu.chatBarText;
 
-    var chatLen = state.chatBarText.length;
+    var chatLen = menu.chatBarText.length;
     el.chatBarCounter.textContent = chatLen + "/14";
     el.chatBarCounter.className = "counter" + (chatLen > 14 ? " danger" : chatLen > 10 ? " warn" : "");
 
-    el.areaCounter.textContent = state.areas.length + "/" + MAX_AREAS;
-    el.addAreaBtn.disabled = state.areas.length >= MAX_AREAS;
-    el.areasEmptyHint.style.display = state.areas.length === 0 ? "block" : "none";
+    el.areaCounter.textContent = menu.areas.length + "/" + MAX_AREAS;
+    el.addAreaBtn.disabled = menu.areas.length >= MAX_AREAS;
+    el.areasEmptyHint.style.display = menu.areas.length === 0 ? "block" : "none";
 
     el.areasList.innerHTML = "";
-    state.areas.forEach(function(area, index){
+    menu.areas.forEach(function(area, index){
       var li = document.createElement("li");
-      li.className = "area-row" + (area.id === state.selectedId ? " is-active" : "");
+      li.className = "area-row" + (area.id === menu.selectedId ? " is-active" : "");
       li.innerHTML =
         '<span class="idx">' + (index + 1) + '</span>' +
         '<span class="lbl">' + (area.icon ? escapeHtml(area.icon) + " " : "") + escapeHtml(area.label || "(無題)") + '</span>' +
@@ -674,7 +831,7 @@
         '<button class="btn danger-text" type="button" title="削除" data-del="' + area.id + '">✕</button>';
       li.addEventListener("click", function(e){
         if (e.target.closest("[data-del]")) return;
-        state.selectedId = area.id;
+        menu.selectedId = area.id;
         render();
       });
       li.querySelector("[data-del]").addEventListener("click", function(e){
@@ -686,33 +843,55 @@
   }
 
   function renderCanvas(){
+    var menu = activeMenu();
     var s = scale();
-    el.canvas.style.width = Math.round(state.width * s) + "px";
-    el.canvas.style.height = Math.round(state.height * s) + "px";
-    el.canvas.style.backgroundImage = state.bgImage ? "url(" + state.bgImage + ")" : "none";
-    el.canvas.style.backgroundColor = state.bgImage ? "transparent" : state.bgColor;
-    el.canvasSizeLabel.textContent = "実寸 " + state.width + "×" + state.height + "px";
+    el.canvas.style.width = Math.round(menu.width * s) + "px";
+    el.canvas.style.height = Math.round(menu.height * s) + "px";
+    el.canvas.style.backgroundImage = menu.bgImage ? "url(" + menu.bgImage + ")" : "none";
+    el.canvas.style.backgroundColor = menu.bgImage ? "transparent" : menu.bgColor;
+    el.canvasSizeLabel.textContent = "実寸 " + menu.width + "×" + menu.height + "px";
 
     el.canvas.innerHTML = "";
-    state.areas.forEach(function(area){
+    menu.areas.forEach(function(area){
       var box = document.createElement("div");
-      box.className = "area-box" + (area.id === state.selectedId ? " is-selected" : "");
+      box.className = "area-box" + (area.id === menu.selectedId ? " is-selected" : "");
       box.dataset.role = "area";
       box.dataset.id = area.id;
       box.style.left = Math.round(area.x * s) + "px";
       box.style.top = Math.round(area.y * s) + "px";
       box.style.width = Math.round(area.w * s) + "px";
       box.style.height = Math.round(area.h * s) + "px";
-      box.style.background = area.bgColor;
+      box.style.backgroundImage = area.image ? "url(" + area.image + ")" : "none";
+      box.style.backgroundSize = "cover";
+      box.style.backgroundPosition = "center";
+      box.style.backgroundColor = area.image ? "transparent" : (area.transparent ? "transparent" : area.bgColor);
       box.style.color = area.textColor;
+      box.style.borderRadius = Math.round((area.radius || 0) * s) + "px";
+
+      if (area.border === "shadow") {
+        box.style.border = "none";
+        box.style.boxShadow = "0 " + Math.round(18 * s) + "px " + Math.round(48 * s) + "px rgba(0,0,0,0.35)";
+      } else if (area.border === "line") {
+        box.style.border = "2px solid " + (area.transparent || area.image ? area.bgColor : "rgba(255,255,255,0.35)");
+        box.style.boxShadow = "none";
+      } else {
+        box.style.border = "none";
+        box.style.boxShadow = "none";
+      }
+
+      var labelFontSize = area.fontSize ? Math.round(area.fontSize * s) : null;
+      var textShadowCss = area.textShadow ? "text-shadow:0 1px 3px rgba(0,0,0,0.65),0 0 8px rgba(0,0,0,0.35);" : "";
+      var labelStyle = "font-weight:" + fontWeightCss(area.fontWeight) + ";" + textShadowCss + (labelFontSize ? ("font-size:" + labelFontSize + "px;") : "");
+      var iconStyle = textShadowCss + (labelFontSize ? ("font-size:" + Math.round(labelFontSize * 1.6) + "px;") : "");
+
       box.innerHTML =
         '<span class="area-type-badge">' + actionTypeLabel(area.actionType) + '</span>' +
-        (area.icon ? '<span class="area-icon">' + escapeHtml(area.icon) + '</span>' : "") +
-        '<span class="area-label">' + escapeHtml(area.label || "") + '</span>';
+        (area.icon ? '<span class="area-icon" style="' + iconStyle + '">' + escapeHtml(area.icon) + '</span>' : "") +
+        '<span class="area-label" style="' + labelStyle + '">' + escapeHtml(area.label || "") + '</span>';
       box.addEventListener("pointerdown", onAreaPointerDown);
       el.canvas.appendChild(box);
 
-      if (area.id === state.selectedId) {
+      if (area.id === menu.selectedId) {
         var handle = document.createElement("div");
         handle.className = "resize-handle";
         handle.dataset.role = "handle";
@@ -726,30 +905,81 @@
   }
 
   function renderInspector(){
-    var area = state.selectedId ? findArea(state.selectedId) : null;
+    var menu = activeMenu();
+    var area = menu.selectedId ? findArea(menu.selectedId) : null;
     if (!area) {
       el.inspector.innerHTML = '<p class="inspector-empty">エリアを選択すると、ラベル・色・タップ時のアクションを編集できます。<br><br>キャンバス上の空いている場所をドラッグすると新しいエリアを作成できます。</p>';
       return;
     }
 
+    var isSwitch = area.actionType === "richmenuswitch";
     var actionValueLabel = area.actionType === "uri" ? "リンク先 URL" :
       area.actionType === "postback" ? "postback data" : "送信するテキスト";
     var actionValueType = area.actionType === "uri" ? "url" : "text";
+
+    var actionFieldsHtml;
+    if (isSwitch) {
+      var otherMenus = state.menus.filter(function(m){ return m.id !== menu.id; });
+      var optionsHtml = otherMenus.length
+        ? otherMenus.map(function(m){
+            return '<option value="' + m.id + '"' + (m.id === area.targetMenuId ? " selected" : "") + '>' + escapeHtml(m.name || "無題") + '</option>';
+          }).join("")
+        : '<option value="">(他にタブがありません)</option>';
+      actionFieldsHtml =
+        '<div class="field"><label>切り替え先タブ</label><select id="fArea_target"' + (otherMenus.length ? "" : " disabled") + '>' + optionsHtml + '</select></div>' +
+        '<div class="field"><label>data(任意・受信側での判定用)</label><input type="text" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"></div>';
+    } else {
+      actionFieldsHtml =
+        '<div class="field"><label>' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"></div>';
+    }
 
     el.inspector.innerHTML =
       '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">🗑 削除</button></div>' +
       '<div class="field"><label>ラベル</label><input type="text" id="fArea_label" value="' + escapeHtml(area.label) + '"></div>' +
       '<div class="field"><label>アイコン(絵文字)</label><input type="text" id="fArea_icon" value="' + escapeHtml(area.icon) + '" placeholder="任意"></div>' +
+
+      '<div class="field"><label>背景画像</label>' +
+      '<div class="bg-row" style="margin:0;">' +
+      '<button class="btn file-btn full" type="button">画像を選ぶ<input type="file" id="fArea_imageInput" accept="image/*"></button>' +
+      '<button class="btn ghost full" id="fArea_imageClear" type="button"' + (area.image ? "" : " disabled") + '>削除</button>' +
+      '</div></div>' +
+
       '<div class="grid2">' +
-      '<div class="field"><label>背景色</label><input type="color" id="fArea_bg" value="' + area.bgColor + '"></div>' +
+      '<div class="field"><label>背景色</label><input type="color" id="fArea_bg" value="' + area.bgColor + '"' + (area.image ? " disabled" : "") + '></div>' +
       '<div class="field"><label>文字色</label><input type="color" id="fArea_fg" value="' + area.textColor + '"></div>' +
       '</div>' +
+
+      '<div class="field"><label>背景を透明にする<input type="checkbox" id="fArea_transparent"' + (area.transparent ? " checked" : "") + (area.image ? " disabled" : "") + '></label></div>' +
+
+      '<div class="grid2">' +
+      '<div class="field"><label>枠のスタイル</label><select id="fArea_border">' +
+      '<option value="line"' + (area.border === "line" ? " selected" : "") + '>ライン</option>' +
+      '<option value="shadow"' + (area.border === "shadow" ? " selected" : "") + '>シャドウ</option>' +
+      '<option value="none"' + (area.border === "none" ? " selected" : "") + '>なし</option>' +
+      '</select></div>' +
+      '<div class="field"><label>角丸</label><input class="mono" type="text" inputmode="numeric" id="fArea_radius" value="' + Math.round(area.radius || 0) + '"></div>' +
+      '</div>' +
+
+      '<div class="grid2">' +
+      '<div class="field"><label>文字の太さ</label><select id="fArea_weight">' +
+      '<option value="regular"' + (area.fontWeight === "regular" ? " selected" : "") + '>標準</option>' +
+      '<option value="semibold"' + (area.fontWeight === "semibold" ? " selected" : "") + '>やや太字</option>' +
+      '<option value="bold"' + (area.fontWeight === "bold" ? " selected" : "") + '>太字</option>' +
+      '<option value="extrabold"' + (area.fontWeight === "extrabold" ? " selected" : "") + '>極太</option>' +
+      '</select></div>' +
+      '<div class="field"><label>文字サイズ</label><input class="mono" type="text" inputmode="numeric" id="fArea_fontSize" value="' + (area.fontSize ? Math.round(area.fontSize) : "") + '" placeholder="自動"></div>' +
+      '</div>' +
+
+      '<div class="field"><label>文字に縁取り/影を付ける<input type="checkbox" id="fArea_textShadow"' + (area.textShadow ? " checked" : "") + '></label></div>' +
+
       '<div class="field"><label>アクション種別</label><select id="fArea_type">' +
       '<option value="message"' + (area.actionType === "message" ? " selected" : "") + '>message(発言する)</option>' +
       '<option value="postback"' + (area.actionType === "postback" ? " selected" : "") + '>postback(裏でデータ送信)</option>' +
       '<option value="uri"' + (area.actionType === "uri" ? " selected" : "") + '>uri(リンクを開く)</option>' +
+      '<option value="richmenuswitch"' + (isSwitch ? " selected" : "") + '>richmenuswitch(タブ切り替え)</option>' +
       '</select></div>' +
-      '<div class="field"><label>' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"></div>' +
+      actionFieldsHtml +
+
       '<div class="grid2">' +
       '<div class="field"><label>X</label><input class="mono" type="text" inputmode="numeric" id="fArea_x" value="' + Math.round(area.x) + '"></div>' +
       '<div class="field"><label>Y</label><input class="mono" type="text" inputmode="numeric" id="fArea_y" value="' + Math.round(area.y) + '"></div>' +
@@ -761,13 +991,48 @@
     bindText("fArea_label", function(v){ area.label = v; });
     bindText("fArea_icon", function(v){ area.icon = v; });
     bindText("fArea_value", function(v){ area.actionValue = v; });
+
+    document.getElementById("fArea_imageInput").addEventListener("change", async function(){
+      var file = this.files && this.files[0];
+      if (!file) return;
+      area.image = await readImageAsDataUrl(file);
+      render();
+    });
+    document.getElementById("fArea_imageClear").addEventListener("click", function(){
+      area.image = null;
+      render();
+    });
+
     document.getElementById("fArea_bg").addEventListener("input", function(){ area.bgColor = this.value; renderCanvas(); });
     document.getElementById("fArea_fg").addEventListener("input", function(){ area.textColor = this.value; renderCanvas(); });
+    document.getElementById("fArea_transparent").addEventListener("change", function(){
+      area.transparent = this.checked;
+      if (area.transparent && !area._shadowAutoSet) {
+        area.textShadow = true;
+        area._shadowAutoSet = true;
+      }
+      render();
+    });
+    document.getElementById("fArea_border").addEventListener("change", function(){ area.border = this.value; renderCanvas(); });
+    bindNumber("fArea_radius", function(v){ area.radius = clampNum(v, 0, 200); });
+    document.getElementById("fArea_weight").addEventListener("change", function(){ area.fontWeight = this.value; renderCanvas(); });
+    document.getElementById("fArea_fontSize").addEventListener("change", function(){
+      var raw = this.value.trim();
+      area.fontSize = raw === "" ? null : clampNum(parseInt(raw, 10) || 0, 8, 400);
+      renderCanvas();
+    });
+    document.getElementById("fArea_textShadow").addEventListener("change", function(){ area.textShadow = this.checked; renderCanvas(); });
+
     document.getElementById("fArea_type").addEventListener("change", function(){ area.actionType = this.value; render(); });
-    bindNumber("fArea_x", function(v){ area.x = clampNum(v, 0, state.width - area.w); });
-    bindNumber("fArea_y", function(v){ area.y = clampNum(v, 0, state.height - area.h); });
-    bindNumber("fArea_w", function(v){ area.w = clampNum(v, MIN_SIZE, state.width - area.x); });
-    bindNumber("fArea_h", function(v){ area.h = clampNum(v, MIN_SIZE, state.height - area.y); });
+    var targetSelect = document.getElementById("fArea_target");
+    if (targetSelect) {
+      targetSelect.addEventListener("change", function(){ area.targetMenuId = this.value || null; renderJsonPreview(); });
+    }
+
+    bindNumber("fArea_x", function(v){ area.x = clampNum(v, 0, activeMenu().width - area.w); });
+    bindNumber("fArea_y", function(v){ area.y = clampNum(v, 0, activeMenu().height - area.h); });
+    bindNumber("fArea_w", function(v){ area.w = clampNum(v, MIN_SIZE, activeMenu().width - area.x); });
+    bindNumber("fArea_h", function(v){ area.h = clampNum(v, MIN_SIZE, activeMenu().height - area.y); });
   }
 
   function bindText(id, apply){
@@ -790,13 +1055,14 @@
     });
   }
 
-  function buildRichMenuObject(){
+  function buildRichMenuObject(menu){
+    var m = menu || activeMenu();
     return {
-      size: { width: state.width, height: state.height },
+      size: { width: m.width, height: m.height },
       selected: false,
-      name: state.name || "richmenu",
-      chatBarText: (state.chatBarText || "メニュー").slice(0, 14),
-      areas: state.areas.map(function(a){
+      name: m.name || "richmenu",
+      chatBarText: (m.chatBarText || "メニュー").slice(0, 14),
+      areas: m.areas.map(function(a){
         return {
           bounds: { x: Math.round(a.x), y: Math.round(a.y), width: Math.round(a.w), height: Math.round(a.h) },
           action: buildAction(a)
@@ -812,11 +1078,22 @@
     if (a.actionType === "uri") {
       return { type: "uri", uri: a.actionValue || "https://" };
     }
+    if (a.actionType === "richmenuswitch") {
+      var targetMenu = null;
+      for (var i = 0; i < state.menus.length; i += 1) {
+        if (state.menus[i].id === a.targetMenuId) { targetMenu = state.menus[i]; break; }
+      }
+      return {
+        type: "richmenuswitch",
+        richMenuAliasId: targetMenu ? (targetMenu.alias || targetMenu.id) : "",
+        data: a.actionValue || ""
+      };
+    }
     return { type: "message", text: a.actionValue || a.label || "" };
   }
 
   function renderJsonPreview(){
-    el.jsonPreview.textContent = JSON.stringify(buildRichMenuObject(), null, 2);
+    el.jsonPreview.textContent = JSON.stringify(buildRichMenuObject(activeMenu()), null, 2);
   }
 
   // ---------- clipboard ----------
@@ -829,7 +1106,7 @@
   }
 
   async function copyJsonToClipboard(){
-    var text = JSON.stringify(buildRichMenuObject(), null, 2);
+    var text = JSON.stringify(buildRichMenuObject(activeMenu()), null, 2);
     try {
       await navigator.clipboard.writeText(text);
       showToast("JSON をコピーしました");
@@ -841,15 +1118,16 @@
 
   // ---------- export: json ----------
   async function downloadJson(){
-    var text = JSON.stringify(buildRichMenuObject(), null, 2);
+    var menu = activeMenu();
+    var text = JSON.stringify(buildRichMenuObject(menu), null, 2);
     if (downloadsApi) {
       try {
-        await downloadsApi.save({ filename: sanitizeFilename(state.name) + ".json", data: text });
+        await downloadsApi.save({ filename: sanitizeFilename(menu.name) + ".json", data: text });
         showToast("richmenu.json を保存しました");
       } catch (err) {
         showToast(downloadErrorMessage(err), "error");
       }
-    } else if (triggerBrowserDownload(sanitizeFilename(state.name) + ".json", text, "application/json")) {
+    } else if (triggerBrowserDownload(sanitizeFilename(menu.name) + ".json", text, "application/json")) {
       showToast("richmenu.json をダウンロードしました");
     } else {
       selectPreformattedText(document.getElementById("jsonPreview"));
@@ -891,8 +1169,6 @@
 
   /**
    * data:image/png;base64,... 形式の文字列を同期的に Blob へ変換します。
-   * fetch(dataUrl) は非同期になり呼び出し側のフォールバック分岐が複雑になるため、
-   * ここでは atob で直接デコードします。
    *
    * @param {string} dataUrl data URL 文字列
    * @returns {Blob}
@@ -937,52 +1213,107 @@
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   }
 
-  async function renderExportCanvas(){
+  function roundedRectPath(ctx, x, y, w, h, r){
+    var rr = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  async function renderExportCanvas(menu){
     if (document.fonts && document.fonts.ready) {
       try { await document.fonts.ready; } catch (e) { /* ignore */ }
     }
     var canvas = document.createElement("canvas");
-    canvas.width = state.width;
-    canvas.height = state.height;
+    canvas.width = menu.width;
+    canvas.height = menu.height;
     var ctx = canvas.getContext("2d");
 
-    if (state.bgImage) {
+    if (menu.bgImage) {
       try {
-        var img = await loadImageAsync(state.bgImage);
-        drawImageCover(ctx, img, 0, 0, state.width, state.height);
+        var bgImg = await loadImageAsync(menu.bgImage);
+        drawImageCover(ctx, bgImg, 0, 0, menu.width, menu.height);
       } catch (e) {
-        ctx.fillStyle = state.bgColor;
-        ctx.fillRect(0, 0, state.width, state.height);
+        ctx.fillStyle = menu.bgColor;
+        ctx.fillRect(0, 0, menu.width, menu.height);
       }
     } else {
-      ctx.fillStyle = state.bgColor;
-      ctx.fillRect(0, 0, state.width, state.height);
+      ctx.fillStyle = menu.bgColor;
+      ctx.fillRect(0, 0, menu.width, menu.height);
     }
 
-    state.areas.forEach(function(a){
-      ctx.fillStyle = a.bgColor;
-      ctx.fillRect(a.x, a.y, a.w, a.h);
-      ctx.strokeStyle = "rgba(255,255,255,0.22)";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(a.x + 2, a.y + 2, Math.max(0, a.w - 4), Math.max(0, a.h - 4));
+    for (var i = 0; i < menu.areas.length; i += 1) {
+      var a = menu.areas[i];
+      var radius = a.radius || 0;
+
+      if (a.border === "shadow" && !a.transparent && !a.image) {
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.35)";
+        ctx.shadowBlur = 30;
+        ctx.shadowOffsetY = 10;
+        roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
+        ctx.fillStyle = a.bgColor;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (a.image) {
+        var img = null;
+        try { img = await loadImageAsync(a.image); } catch (e) { img = null; }
+        ctx.save();
+        roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
+        ctx.clip();
+        if (img) {
+          drawImageCover(ctx, img, a.x, a.y, a.w, a.h);
+        } else if (!a.transparent) {
+          ctx.fillStyle = a.bgColor;
+          ctx.fillRect(a.x, a.y, a.w, a.h);
+        }
+        ctx.restore();
+      } else if (!a.transparent && a.border !== "shadow") {
+        roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
+        ctx.fillStyle = a.bgColor;
+        ctx.fill();
+      }
+
+      if (a.border === "line") {
+        roundedRectPath(ctx, a.x + 2, a.y + 2, Math.max(0, a.w - 4), Math.max(0, a.h - 4), Math.max(0, radius - 2));
+        ctx.strokeStyle = (a.transparent || a.image) ? a.bgColor : "rgba(255,255,255,0.35)";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
 
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = a.textColor;
-      var fontSize = Math.max(24, Math.min(64, a.h * 0.14));
+      var fontSize = a.fontSize ? a.fontSize : Math.max(24, Math.min(64, a.h * 0.14));
+      var weight = fontWeightCss(a.fontWeight);
       var cx = a.x + a.w / 2;
       var cy = a.y + a.h / 2;
+
+      if (a.textShadow) {
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 2;
+      }
 
       if (a.icon) {
         ctx.font = Math.round(fontSize * 1.7) + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
         ctx.fillText(a.icon, cx, cy - fontSize * 0.55);
-        ctx.font = "600 " + Math.round(fontSize) + 'px Archivo, sans-serif';
+        ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
         ctx.fillText(a.label || "", cx, cy + fontSize * 0.75);
       } else {
-        ctx.font = "600 " + Math.round(fontSize) + 'px Archivo, sans-serif';
+        ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
         ctx.fillText(a.label || "", cx, cy);
       }
-    });
+
+      if (a.textShadow) { ctx.restore(); }
+    }
 
     return canvas;
   }
@@ -990,7 +1321,8 @@
   async function exportPng(){
     el.exportPngBtn.disabled = true;
     try {
-      var canvas = await renderExportCanvas();
+      var menu = activeMenu();
+      var canvas = await renderExportCanvas(menu);
       var dataUrl = canvas.toDataURL("image/png");
       el.pngPreviewImg.src = dataUrl;
       el.pngPreview.classList.add("is-visible");
@@ -998,14 +1330,14 @@
       if (downloadsApi) {
         try {
           var blob = await (await fetch(dataUrl)).blob();
-          await downloadsApi.save({ filename: sanitizeFilename(state.name) + ".png", data: blob });
+          await downloadsApi.save({ filename: sanitizeFilename(menu.name) + ".png", data: blob });
           el.pngPreviewHint.textContent = "保存しました。長押し/右クリックでも保存できます。";
           showToast("PNG を保存しました");
         } catch (err) {
           el.pngPreviewHint.textContent = "自動保存に失敗したため、下の画像を長押し/右クリックして保存してください。";
           showToast(downloadErrorMessage(err), "error");
         }
-      } else if (triggerBrowserDownload(sanitizeFilename(state.name) + ".png", dataUrlToBlobSync(dataUrl), "image/png")) {
+      } else if (triggerBrowserDownload(sanitizeFilename(menu.name) + ".png", dataUrlToBlobSync(dataUrl), "image/png")) {
         el.pngPreviewHint.textContent = "ダウンロードしました。長押し/右クリックでも保存できます。";
         showToast("PNG をダウンロードしました");
       } else {
@@ -1058,21 +1390,24 @@
   el.canvas.addEventListener("pointerup", onCanvasPointerUp);
   el.canvas.addEventListener("pointercancel", onCanvasPointerUp);
 
-  el.bgColor.addEventListener("input", function(){ state.bgColor = this.value; renderCanvas(); });
+  el.addMenuBtn.addEventListener("click", addMenu);
+
+  el.bgColor.addEventListener("input", function(){ activeMenu().bgColor = this.value; renderCanvas(); });
   el.bgImageInput.addEventListener("change", async function(){
     var file = this.files && this.files[0];
     if (!file) return;
-    state.bgImage = await readImageAsDataUrl(file);
+    activeMenu().bgImage = await readImageAsDataUrl(file);
     render();
   });
   el.clearBgImage.addEventListener("click", function(){
-    state.bgImage = null;
+    activeMenu().bgImage = null;
     el.bgImageInput.value = "";
     render();
   });
 
-  el.menuName.addEventListener("input", function(){ state.name = this.value; renderJsonPreview(); });
-  el.chatBarText.addEventListener("input", function(){ state.chatBarText = this.value; renderToolbox(); renderJsonPreview(); });
+  el.menuName.addEventListener("input", function(){ activeMenu().name = this.value; renderTabs(); renderJsonPreview(); });
+  el.menuAlias.addEventListener("input", function(){ activeMenu().alias = this.value; renderJsonPreview(); });
+  el.chatBarText.addEventListener("input", function(){ activeMenu().chatBarText = this.value; renderToolbox(); renderJsonPreview(); });
 
   el.addAreaBtn.addEventListener("click", addManualArea);
   el.copyJsonBtn.addEventListener("click", copyJsonToClipboard);
