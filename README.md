@@ -18,4 +18,14 @@ LINE リッチメニューをブラウザ上でデザインし、Messaging API �
 python3 -m http.server 8000
 ```
 
-`index.html` は単一ファイルです。フォントは Google Fonts、トーストなどの部品は [おくるん](https://github.com/katsuan/line-share) の共通部品（`shared/ui.css`・`ui.js`）を使います。
+`index.html` が画面、`core.js` が画面に触らない部分（この端末に残した中身を読む・richmenu の JSON を作る）です。フォントは Google Fonts、トーストなどの部品は [おくるん](https://github.com/katsuan/line-share) の共通部品（`shared/ui.css`・`ui.js`）を使います。
+
+## テスト
+
+`core.js` のテストです（node の標準のテスト。npm の部品は要りません）。
+
+```bash
+node --test test/
+```
+
+チャネルのアクセストークンは、このツールには入れません（書き出した JSON と PNG を、自分の手元から LINE の API に送ります）。

@@ -445,6 +445,7 @@
 </div>
 
 
+<script src="core.js"></script>
 <script>
 (function(){
   "use strict";
@@ -568,13 +569,10 @@
   // ---------- 保存（この端末に）と元に戻す ----------
   function loadSavedState(){
     try {
-      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (!saved || !Array.isArray(saved.menus) || !saved.menus.length) return null;
-      // 続きの番号から id を作る（同じ id ができないように）
-      var maxId = 0;
-      JSON.stringify(saved).replace(/"id(\d+)"/g, function(_m, n){ maxId = Math.max(maxId, Number(n)); return _m; });
-      idCounter = maxId + 1;
-      saved.activeMenuIndex = clampNum(saved.activeMenuIndex || 0, 0, saved.menus.length - 1);
+      // 端末に残した中身も「外からの中身」として、形・長さ・数をそろえてから使う
+      var saved = window.RichMenuCore.normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"));
+      if (!saved) return null;
+      idCounter = window.RichMenuCore.nextIdNumber(saved);
       return saved;
     } catch (e) {
       return null;
@@ -1235,40 +1233,7 @@
   }
 
   function buildRichMenuObject(menu){
-    var m = menu || activeMenu();
-    return {
-      size: { width: m.width, height: m.height },
-      selected: false,
-      name: m.name || "richmenu",
-      chatBarText: (m.chatBarText || "メニュー").slice(0, 14),
-      areas: m.areas.map(function(a){
-        return {
-          bounds: { x: Math.round(a.x), y: Math.round(a.y), width: Math.round(a.w), height: Math.round(a.h) },
-          action: buildAction(a)
-        };
-      })
-    };
-  }
-
-  function buildAction(a){
-    if (a.actionType === "postback") {
-      return { type: "postback", data: a.actionValue || "", displayText: a.label || undefined };
-    }
-    if (a.actionType === "uri") {
-      return { type: "uri", uri: a.actionValue || "https://" };
-    }
-    if (a.actionType === "richmenuswitch") {
-      var targetMenu = null;
-      for (var i = 0; i < state.menus.length; i += 1) {
-        if (state.menus[i].id === a.targetMenuId) { targetMenu = state.menus[i]; break; }
-      }
-      return {
-        type: "richmenuswitch",
-        richMenuAliasId: targetMenu ? (targetMenu.alias || targetMenu.id) : "",
-        data: a.actionValue || ""
-      };
-    }
-    return { type: "message", text: a.actionValue || a.label || "" };
+    return window.RichMenuCore.buildRichMenuObject(menu || activeMenu(), state.menus);
   }
 
   function renderJsonPreview(){
