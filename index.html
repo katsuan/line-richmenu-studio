@@ -1,5 +1,15 @@
+<!DOCTYPE html>
+<html lang="ja" data-ls-dark="auto">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rich Menu Studio</title>
+<meta name="description" content="LINE のリッチメニューをブラウザでデザインして、画像（PNG）と Messaging API 用の JSON を書き出せます。">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141F19" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%B1%3C/text%3E%3C/svg%3E">
+<!-- Q キット（おくるんの共通部品）。トースト・はじめての案内に使う。色は下の :root で今の緑のまま -->
+<link rel="stylesheet" href="https://katsuan.github.io/line-share/shared/ui.css">
+<script src="https://katsuan.github.io/line-share/shared/ui.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -18,6 +28,12 @@
     --shadow: 0 1px 2px rgba(21,34,28,0.06), 0 8px 24px -12px rgba(21,34,28,0.18);
     --font-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
     --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+    /* Q キットの部品（トースト・案内）もこの色で */
+    --ls-accent:#06C755;
+    --ls-accent-strong:#05A847;
+    --ls-accent-soft:#E1F8EA;
+    --ls-accent-ink:#04331B;
+    --ls-font: var(--font-display);
   }
 
   @media (prefers-color-scheme: dark){
@@ -54,6 +70,8 @@
 
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
+  /* iPhone でキーボードが出たとき、ページの外が黒く見えないように */
+  html{background:var(--bg);}
   body{
     background:var(--bg);
     color:var(--ink);
@@ -72,7 +90,7 @@
 
   /* ---------- topbar ---------- */
   .topbar{
-    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px;
     padding:14px 24px; background:var(--surface); border-bottom:1px solid var(--line);
     position:sticky; top:0; z-index:20;
   }
@@ -84,7 +102,7 @@
   .field-inline{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted);}
   .field-inline select{
     padding:7px 10px; border-radius:8px; border:1px solid var(--line);
-    background:var(--surface-2); color:var(--ink); font-size:13px;
+    background-color:var(--surface-2); color:var(--ink); font-size:16px;
   }
 
   /* ---------- tab bar (menus) ---------- */
@@ -94,22 +112,28 @@
   }
   .tabbar{display:flex; align-items:center; gap:8px; overflow-x:auto; flex:1;}
   .tab-chip{
-    display:inline-flex; align-items:center; gap:7px; padding:7px 13px;
+    display:inline-flex; align-items:center; gap:2px; padding:0 4px 0 0;
     border-radius:999px; border:1px solid var(--line); background:var(--surface-2);
-    font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; color:var(--ink);
+    font-size:12.5px; font-weight:600; white-space:nowrap; color:var(--ink);
     flex-shrink:0;
   }
   .tab-chip.is-active{background:var(--accent-soft); border-color:var(--accent);}
-  .tab-chip .tab-close{opacity:0.5; font-size:11px; line-height:1;}
+  .tab-chip button{appearance:none; border:0; background:transparent; color:inherit; font:inherit; cursor:pointer;}
+  .tab-chip .tab-main{padding:7px 9px 7px 13px; border-radius:999px;}
+  .tab-chip:not(:has(.tab-close)) .tab-main{padding-right:13px;}
+  .tab-chip .tab-close{opacity:0.55; font-size:11px; line-height:1; padding:6px; border-radius:999px;}
   .tab-chip .tab-close:hover{opacity:1; color:var(--danger);}
 
   /* ---------- workspace grid ---------- */
   .workspace{
-    display:grid; grid-template-columns:252px 1fr 288px; gap:16px;
+    display:grid; grid-template-columns:252px minmax(0,1fr) 288px; gap:16px;
     padding:18px 24px; flex:1; align-items:start;
   }
   @media (max-width: 980px){
-    .workspace{grid-template-columns:1fr;}
+    .workspace{grid-template-columns:minmax(0,1fr);}
+    /* 1列のときは、キャンバス → エリア設定 → 作る道具 の順に（選んだエリアの設定がすぐ下に出る） */
+    .canvas-wrap{order:-2;}
+    .inspector{order:-1;}
   }
 
   .panel{
@@ -123,7 +147,7 @@
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em;
     color:var(--muted); margin-bottom:10px;
   }
-  .grid-presets{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .grid-presets{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px;}
   .grid-btn{
     display:flex; flex-direction:column; align-items:center; gap:4px;
     padding:10px 6px; border-radius:10px; border:1px solid var(--line);
@@ -153,10 +177,22 @@
   .field label{font-size:12px; color:var(--muted); display:flex; justify-content:space-between;}
   .field input[type="text"],
   .field input[type="url"],
-  .field textarea{
+  .field textarea,
+  .field select{
+    -webkit-appearance:none; appearance:none;
     padding:8px 10px; border-radius:8px; border:1px solid var(--line);
-    background:var(--surface-2); color:var(--ink); font-size:13px; width:100%;
+    background:var(--surface-2); color:var(--ink); font-size:16px; width:100%; min-width:0;
   }
+  .field select,
+  .field-inline select{
+    -webkit-appearance:none; appearance:none; padding-right:28px;
+    background-image:linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position:calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+    background-size:5px 5px, 5px 5px; background-repeat:no-repeat;
+  }
+  .field input[aria-invalid="true"]{border-color:var(--danger);}
+  .field-error{margin:0; font-size:12px; line-height:1.5; color:var(--danger);}
+  .field-error:empty{display:none;}
   .field input[type="color"]{
     width:100%; height:34px; padding:2px; border-radius:8px; border:1px solid var(--line);
     background:var(--surface-2); cursor:pointer;
@@ -165,7 +201,7 @@
   .counter.warn{color:var(--warn);}
   .counter.danger{color:var(--danger);}
 
-  .bg-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;}
+  .bg-row{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; margin-bottom:8px;}
   .btn{
     appearance:none; border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
     border-radius:9px; padding:8px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
@@ -249,7 +285,7 @@
   }
   .inspector-head{display:flex; justify-content:space-between; align-items:center;}
   .inspector-head h2{font-size:13px; font-weight:700;}
-  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .grid2{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px;}
   .field input.mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
 
   /* ---------- footer / export ---------- */
@@ -257,7 +293,7 @@
     display:grid; grid-template-columns:1fr 260px; gap:16px;
     padding:16px 24px 24px;
   }
-  @media (max-width: 980px){ .exportbar{grid-template-columns:1fr;} }
+  @media (max-width: 980px){ .exportbar{grid-template-columns:minmax(0,1fr);} }
   .json-panel{padding:14px; display:flex; flex-direction:column; gap:8px; min-width:0;}
   .json-head{display:flex; justify-content:space-between; align-items:center;}
   .json-head span{font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
@@ -274,15 +310,23 @@
   .png-preview img{width:100%; border-radius:8px; border:1px solid var(--line);}
   .png-preview p{margin:0; font-size:11px; color:var(--muted);}
 
-  /* ---------- toast ---------- */
-  #toastHost{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:100; display:flex; flex-direction:column; gap:8px; align-items:center;}
-  .toast{
-    background:var(--ink); color:var(--bg); padding:9px 16px; border-radius:999px;
-    font-size:12.5px; box-shadow:var(--shadow); opacity:0; transform:translateY(6px);
-    animation:toast-in 0.18s ease-out forwards;
+  /* ---------- スマホ・タブレット ---------- */
+  @media (max-width: 640px){
+    .topbar, .tabbar-row{padding-left:12px; padding-right:12px;}
+    .workspace{padding:12px; gap:12px;}
+    .exportbar{padding:4px 12px 20px; gap:12px;}
+    .canvas-wrap{padding:12px;}
+    .brand-text p{font-size:12px;}
   }
-  .toast.error{background:var(--danger); color:#fff;}
-  @keyframes toast-in{ to{opacity:1; transform:translateY(0);} }
+  /* 指で押す画面では、押せるところを 44px 以上に。大きさを変える丸も大きく */
+  @media (pointer: coarse){
+    .btn, .grid-btn, .tpl-btn, .area-row{min-height:44px;}
+    .tab-chip .tab-main{min-height:42px;}
+    .tab-chip .tab-close{min-width:36px; min-height:36px;}
+    .resize-handle{width:26px; height:26px; margin:-13px 0 0 -13px;}
+  }
+  .ls-tip{margin:12px 24px 0;}
+  @media (max-width: 640px){ .ls-tip{margin:12px 12px 0;} }
 </style>
 
 <div class="app">
@@ -306,8 +350,8 @@
   </header>
 
   <div class="tabbar-row">
-    <div class="tabbar" id="tabbar"></div>
-    <button class="btn ghost" id="addMenuBtn" type="button">＋ タブを追加</button>
+    <div class="tabbar" id="tabbar" role="tablist" aria-label="メニューのタブ"></div>
+    <button class="btn ghost" id="addMenuBtn" type="button">＋ タブを足す</button>
   </div>
 
   <div class="workspace">
@@ -336,28 +380,30 @@
             </button>
           </div>
         </div>
-        <button class="btn ghost full" id="clearBgImage" type="button" disabled>画像を削除</button>
+        <button class="btn ghost full" id="clearBgImage" type="button" disabled>画像を外す</button>
       </div>
 
       <div class="tb-section">
         <h2>メニュー設定</h2>
         <div class="field">
-          <label>内部名 (name)</label>
-          <input type="text" id="menuName" maxlength="300" placeholder="例）メインメニュー">
+          <label for="menuName">内部名 (name)</label>
+          <input type="text" id="menuName" maxlength="300" placeholder="例）メインメニュー" enterkeyhint="done">
         </div>
         <div class="field">
-          <label>タブに出す文字 (chatBarText) <span class="counter" id="chatBarCounter">0/14</span></label>
-          <input type="text" id="chatBarText" placeholder="例）メニュー">
+          <label for="chatBarText">タブに出す文字 (chatBarText) <span class="counter" id="chatBarCounter">0/14</span></label>
+          <input type="text" id="chatBarText" placeholder="例）メニュー" enterkeyhint="done" aria-describedby="chatBarError">
+          <p class="field-error" id="chatBarError" aria-live="polite"></p>
         </div>
         <div class="field">
-          <label>エイリアス (richMenuAliasId)</label>
-          <input type="text" id="menuAlias" maxlength="32" placeholder="例）tab1">
+          <label for="menuAlias">エイリアス (richMenuAliasId)</label>
+          <input type="text" id="menuAlias" maxlength="32" placeholder="例）tab1" autocapitalize="off" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-describedby="aliasError">
+          <p class="field-error" id="aliasError" aria-live="polite"></p>
         </div>
       </div>
 
       <div class="tb-section">
         <h2>エリア <span class="counter" id="areaCounter">0/20</span></h2>
-        <button class="btn full" id="addAreaBtn" type="button">＋ 新規エリアを追加</button>
+        <button class="btn full" id="addAreaBtn" type="button">＋ エリアを足す</button>
         <ul class="areas-list" id="areasList"></ul>
         <p class="empty-count" id="areasEmptyHint">キャンバス上をドラッグしてもエリアを作成できます。</p>
       </div>
@@ -369,7 +415,7 @@
         <span id="canvasScaleLabel">表示倍率 34%</span>
       </div>
       <div id="canvas"></div>
-      <p class="canvas-hint">空いている場所をドラッグして新規エリアを作成、エリアをドラッグで移動、右下の丸をドラッグでリサイズできます。</p>
+      <p class="canvas-hint">空いている場所をなぞるとエリアができます。エリアはドラッグで動かし、右下の丸で大きさを変えられます。</p>
     </main>
 
     <aside class="inspector panel" id="inspector"></aside>
@@ -380,15 +426,15 @@
       <div class="json-head">
         <span>richmenu.json プレビュー</span>
         <div class="json-actions">
-          <button class="btn ghost" id="copyJsonBtn" type="button">コピー</button>
-          <button class="btn ghost" id="downloadJsonBtn" type="button">ダウンロード</button>
+          <button class="btn ghost" id="copyJsonBtn" type="button">📋 コピー</button>
+          <button class="btn ghost" id="downloadJsonBtn" type="button">⬇️ ダウンロード</button>
         </div>
       </div>
       <pre id="jsonPreview"><code></code></pre>
     </section>
 
     <section class="export-panel panel">
-      <button class="btn primary full" id="exportPngBtn" type="button">PNGを書き出す</button>
+      <button class="btn primary full" id="exportPngBtn" type="button">🖼️ PNGを書き出す</button>
       <p class="hint" id="exportHint">Messaging API の Rich Menu 作成エンドポイントにそのまま渡せる形式で書き出します。</p>
       <div class="png-preview" id="pngPreview">
         <img id="pngPreviewImg" alt="書き出したリッチメニュー画像のプレビュー">
@@ -398,14 +444,14 @@
   </div>
 </div>
 
-<div id="toastHost"></div>
 
 <script>
 (function(){
   "use strict";
 
   var MIN_SIZE = 24;
-  var DISPLAY_WIDTH = 860;
+  var DISPLAY_WIDTH = 860; // いちばん大きいときの表示の幅。画面がせまいときは、入る幅まで小さくする
+  var STORAGE_KEY = "richmenu-studio:state:v1";
   var MAX_AREAS = 20;
   var SIZES = {
     full: { width: 2500, height: 1686, label: "Full — 2500×1686" },
@@ -415,24 +461,30 @@
   var idCounter = 1;
   function uid(){ return "id" + (idCounter++); }
 
-  var state = {
-    activeMenuIndex: 0,
-    menus: [
-      {
-        id: uid(),
-        alias: "tab1",
-        size: "full",
-        width: SIZES.full.width,
-        height: SIZES.full.height,
-        name: "メインメニュー",
-        chatBarText: "メニュー",
-        bgColor: "#0B3B21",
-        bgImage: null,
-        areas: [],
-        selectedId: null
-      }
-    ]
-  };
+  function createInitialState(){
+    return {
+      activeMenuIndex: 0,
+      menus: [
+        {
+          id: uid(),
+          alias: "tab1",
+          size: "full",
+          width: SIZES.full.width,
+          height: SIZES.full.height,
+          name: "メインメニュー",
+          chatBarText: "メニュー",
+          bgColor: "#0B3B21",
+          bgImage: null,
+          areas: [],
+          selectedId: null
+        }
+      ]
+    };
+  }
+
+  // 前に作っていたものがあれば、その続きから（この端末の中だけに残す）
+  var restored = loadSavedState();
+  var state = restored || createInitialState();
 
   var dragState = null;
   var downloadsApi = null;
@@ -467,10 +519,18 @@
     pngPreview: document.getElementById("pngPreview"),
     pngPreviewImg: document.getElementById("pngPreviewImg"),
     pngPreviewHint: document.getElementById("pngPreviewHint"),
-    toastHost: document.getElementById("toastHost")
+    canvasScaleLabel: document.getElementById("canvasScaleLabel"),
+    chatBarError: document.getElementById("chatBarError"),
+    aliasError: document.getElementById("aliasError")
   };
 
-  function scale(){ return DISPLAY_WIDTH / activeMenu().width; }
+  function displayWidth(){
+    var wrap = el.canvas.parentElement;
+    var style = getComputedStyle(wrap);
+    var avail = wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - 2;
+    return Math.max(200, Math.min(DISPLAY_WIDTH, Math.floor(avail)));
+  }
+  function scale(){ return displayWidth() / activeMenu().width; }
   function clampNum(v, min, max){ return Math.min(Math.max(v, min), max); }
   function escapeHtml(str){
     return String(str || "").replace(/[&<>"']/g, function(c){
@@ -500,27 +560,83 @@
     return "Message";
   }
 
-  function showToast(message, tone){
-    var toast = document.createElement("div");
-    toast.className = "toast" + (tone === "error" ? " error" : "");
-    toast.textContent = message;
-    el.toastHost.appendChild(toast);
-    setTimeout(function(){
-      toast.style.transition = "opacity 0.2s ease";
-      toast.style.opacity = "0";
-      setTimeout(function(){ toast.remove(); }, 220);
-    }, 2600);
+  // 知らせは Q キットのトースト（下に数秒。新しいものが来たら前のは消える）
+  function showToast(message, _tone, options){
+    if (window.LineShareUI) window.LineShareUI.toast(message, options || {});
+  }
+
+  // ---------- 保存（この端末に）と元に戻す ----------
+  function loadSavedState(){
+    try {
+      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (!saved || !Array.isArray(saved.menus) || !saved.menus.length) return null;
+      // 続きの番号から id を作る（同じ id ができないように）
+      var maxId = 0;
+      JSON.stringify(saved).replace(/"id(\d+)"/g, function(_m, n){ maxId = Math.max(maxId, Number(n)); return _m; });
+      idCounter = maxId + 1;
+      saved.activeMenuIndex = clampNum(saved.activeMenuIndex || 0, 0, saved.menus.length - 1);
+      return saved;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  var saveTimer = null;
+  var warnedImageNotSaved = false;
+  function scheduleSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveState, 400);
+  }
+  function saveState(){
+    var text = JSON.stringify(state);
+    try {
+      localStorage.setItem(STORAGE_KEY, text);
+      return;
+    } catch (e) { /* 大きすぎるときは、画像を外して残す */ }
+    try {
+      var light = JSON.parse(text);
+      light.menus.forEach(function(m){
+        if (m.bgImage && m.bgImage.length > 200000) m.bgImage = null;
+        m.areas.forEach(function(a){ a.image = null; });
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(light));
+      if (!warnedImageNotSaved) {
+        warnedImageNotSaved = true;
+        showToast("画像が大きいので、画像だけはこの端末に残せません。開きなおしたら選びなおしてね");
+      }
+    } catch (e2) { /* 残せない環境でも、そのまま使える */ }
+  }
+
+  function snapshot(){ return JSON.stringify(state); }
+  function restoreSnapshot(text){
+    state = JSON.parse(text);
+    render();
+  }
+  // 消す・上書きする操作は確かめずにすぐ行い、トーストの「元に戻す」で戻せるようにする
+  function undoable(message, change){
+    var before = snapshot();
+    change();
+    render();
+    showToast(message, null, { actionLabel: "元に戻す", onAction: function(){ restoreSnapshot(before); } });
+  }
+
+  function startFresh(){
+    undoable("新しく作りはじめました", function(){
+      state = createInitialState();
+    });
   }
 
   function downloadErrorMessage(err){
     var code = err && err.code;
     switch (code) {
-      case "declined": return "保存がキャンセルされました";
-      case "rate_limited": return "少し時間をおいてから、もう一度お試しください";
-      case "too_large": return "ファイルサイズが大きすぎます(16MB上限)";
+      case "declined": return "保存をやめました";
+      case "rate_limited": return "少し待ってから、もう一度ためしてね";
+      case "too_large": return "ファイルが大きすぎて保存できません（16MB まで）";
       case "rejected_extension":
       case "extension_not_enabled": return "この形式のファイルは保存できません";
-      default: return "保存に失敗しました: " + (err && err.message ? err.message : String(err));
+      default:
+        console.error(err);
+        return "保存できませんでした。もう一度ためしてね";
     }
   }
 
@@ -600,17 +716,27 @@
         n += 1;
       }
     }
-    menu.areas = areas;
-    menu.selectedId = null;
-    render();
-    showToast(rows + "×" + cols + " のグリッドを作成しました");
+    var message = rows + "×" + cols + " のグリッドを作りました";
+    if (!menu.areas.length) {
+      menu.areas = areas;
+      menu.selectedId = null;
+      render();
+      showToast(message);
+      return;
+    }
+    undoable(message, function(){
+      menu.areas = areas;
+      menu.selectedId = null;
+    });
   }
 
   function deleteArea(id){
     var menu = activeMenu();
-    menu.areas = menu.areas.filter(function(a){ return a.id !== id; });
-    if (menu.selectedId === id) menu.selectedId = null;
-    render();
+    var area = findArea(id);
+    undoable("「" + ((area && area.label) || "エリア") + "」を消しました", function(){
+      menu.areas = menu.areas.filter(function(a){ return a.id !== id; });
+      if (menu.selectedId === id) menu.selectedId = null;
+    });
   }
 
   // ---------- menus (tabs) ----------
@@ -646,7 +772,7 @@
 
   function deleteMenu(id){
     if (state.menus.length <= 1) {
-      showToast("最後のタブは削除できません", "error");
+      showToast("タブは1つは残します", "error");
       return;
     }
     var idx = -1;
@@ -655,30 +781,38 @@
     }
     if (idx === -1) return;
 
-    state.menus.splice(idx, 1);
-    state.menus.forEach(function(m){
-      m.areas.forEach(function(a){
-        if (a.actionType === "richmenuswitch" && a.targetMenuId === id) {
-          a.targetMenuId = null;
-        }
+    undoable("「" + (state.menus[idx].name || "タブ") + "」のタブを消しました", function(){
+      state.menus.splice(idx, 1);
+      state.menus.forEach(function(m){
+        m.areas.forEach(function(a){
+          if (a.actionType === "richmenuswitch" && a.targetMenuId === id) {
+            a.targetMenuId = null;
+          }
+        });
       });
+      if (state.activeMenuIndex >= state.menus.length) {
+        state.activeMenuIndex = state.menus.length - 1;
+      }
     });
-    if (state.activeMenuIndex >= state.menus.length) {
-      state.activeMenuIndex = state.menus.length - 1;
-    }
-    render();
   }
 
   // ---------- size preset ----------
   function applySizePreset(key){
     var preset = SIZES[key];
     var menu = activeMenu();
-    menu.size = key;
-    menu.width = preset.width;
-    menu.height = preset.height;
-    menu.areas = [];
-    menu.selectedId = null;
-    render();
+    var change = function(){
+      menu.size = key;
+      menu.width = preset.width;
+      menu.height = preset.height;
+      menu.areas = [];
+      menu.selectedId = null;
+    };
+    if (!menu.areas.length) {
+      change();
+      render();
+      return;
+    }
+    undoable("サイズを変えたので、エリアを消しました", change);
   }
 
   // ---------- pointer interactions ----------
@@ -790,6 +924,7 @@
 
   // ---------- render ----------
   function render(){
+    scheduleSave();
     renderTopbar();
     renderTabs();
     renderToolbox();
@@ -806,12 +941,13 @@
     el.tabbar.innerHTML = "";
     state.menus.forEach(function(menu, index){
       var chip = document.createElement("div");
-      chip.className = "tab-chip" + (index === state.activeMenuIndex ? " is-active" : "");
+      var isActive = index === state.activeMenuIndex;
+      var label = menu.name || ("メニュー" + (index + 1));
+      chip.className = "tab-chip" + (isActive ? " is-active" : "");
       chip.innerHTML =
-        '<span class="tab-label">' + escapeHtml(menu.name || ("メニュー" + (index + 1))) + '</span>' +
-        (state.menus.length > 1 ? '<span class="tab-close" data-close="' + menu.id + '" title="このタブを削除">✕</span>' : "");
-      chip.addEventListener("click", function(e){
-        if (e.target.closest("[data-close]")) return;
+        '<button type="button" class="tab-main" role="tab" aria-selected="' + isActive + '">' + escapeHtml(label) + '</button>' +
+        (state.menus.length > 1 ? '<button type="button" class="tab-close" data-close="' + menu.id + '" aria-label="「' + escapeHtml(label) + '」のタブを消す" title="このタブを消す">✕</button>' : "");
+      chip.querySelector(".tab-main").addEventListener("click", function(){
         switchMenu(index);
       });
       var closeBtn = chip.querySelector("[data-close]");
@@ -836,6 +972,9 @@
     var chatLen = menu.chatBarText.length;
     el.chatBarCounter.textContent = chatLen + "/14";
     el.chatBarCounter.className = "counter" + (chatLen > 14 ? " danger" : chatLen > 10 ? " warn" : "");
+    setFieldError(el.chatBarText, el.chatBarError, chatLen > 14 ? "14文字までにしてね（書き出すと15文字目からは切れます）" : "");
+    var alias = menu.alias || "";
+    setFieldError(el.menuAlias, el.aliasError, alias && !/^[A-Za-z0-9_-]+$/.test(alias) ? "半角の英数字と - _ だけ使えます" : "");
 
     el.areaCounter.textContent = menu.areas.length + "/" + MAX_AREAS;
     el.addAreaBtn.disabled = menu.areas.length >= MAX_AREAS;
@@ -849,7 +988,7 @@
         '<span class="idx">' + (index + 1) + '</span>' +
         '<span class="lbl">' + (area.icon ? escapeHtml(area.icon) + " " : "") + escapeHtml(area.label || "(無題)") + '</span>' +
         '<span class="pill type-' + area.actionType + '">' + actionTypeLabel(area.actionType) + '</span>' +
-        '<button class="btn danger-text" type="button" title="削除" data-del="' + area.id + '">✕</button>';
+        '<button class="btn danger-text" type="button" title="消す" aria-label="「' + escapeHtml(area.label || "無題") + '」を消す" data-del="' + area.id + '">✕</button>';
       li.addEventListener("click", function(e){
         if (e.target.closest("[data-del]")) return;
         menu.selectedId = area.id;
@@ -866,6 +1005,8 @@
   function renderCanvas(){
     var menu = activeMenu();
     var s = scale();
+    scheduleSave();
+    el.canvasScaleLabel.textContent = "表示倍率 " + Math.round(s * 100) + "%";
     el.canvas.style.width = Math.round(menu.width * s) + "px";
     el.canvas.style.height = Math.round(menu.height * s) + "px";
     el.canvas.style.backgroundImage = menu.bgImage ? "url(" + menu.bgImage + ")" : "none";
@@ -926,6 +1067,19 @@
     });
   }
 
+  function setFieldError(input, box, message){
+    if (!input || !box) return;
+    box.textContent = message;
+    input.setAttribute("aria-invalid", String(!!message));
+  }
+
+  function actionValueError(area){
+    if (area.actionType !== "uri") return "";
+    var v = (area.actionValue || "").trim();
+    if (!v) return "リンク先を入れてね";
+    return /^(https?:|line:|tel:)/i.test(v) ? "" : "https:// などから始まるリンクにしてね";
+  }
+
   function renderInspector(){
     var menu = activeMenu();
     var area = menu.selectedId ? findArea(menu.selectedId) : null;
@@ -952,18 +1106,18 @@
         '<div class="field"><label>data(任意・受信側での判定用)</label><input type="text" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"></div>';
     } else {
       actionFieldsHtml =
-        '<div class="field"><label>' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"></div>';
+        '<div class="field"><label for="fArea_value">' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"' + (area.actionType === "uri" ? ' inputmode="url" autocapitalize="off" spellcheck="false"' : "") + ' aria-describedby="fArea_valueError"><p class="field-error" id="fArea_valueError" aria-live="polite"></p></div>';
     }
 
     el.inspector.innerHTML =
-      '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">🗑 削除</button></div>' +
+      '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">🗑 消す</button></div>' +
       '<div class="field"><label>ラベル</label><input type="text" id="fArea_label" value="' + escapeHtml(area.label) + '"></div>' +
       '<div class="field"><label>アイコン(絵文字)</label><input type="text" id="fArea_icon" value="' + escapeHtml(area.icon) + '" placeholder="任意"></div>' +
 
       '<div class="field"><label>背景画像</label>' +
       '<div class="bg-row" style="margin:0;">' +
       '<button class="btn file-btn full" type="button">画像を選ぶ<input type="file" id="fArea_imageInput" accept="image/*"></button>' +
-      '<button class="btn ghost full" id="fArea_imageClear" type="button"' + (area.image ? "" : " disabled") + '>削除</button>' +
+      '<button class="btn ghost full" id="fArea_imageClear" type="button"' + (area.image ? "" : " disabled") + '>外す</button>' +
       '</div></div>' +
 
       '<div class="grid2">' +
@@ -1013,6 +1167,10 @@
     bindText("fArea_label", function(v){ area.label = v; });
     bindText("fArea_icon", function(v){ area.icon = v; });
     bindText("fArea_value", function(v){ area.actionValue = v; });
+    var valueInput = document.getElementById("fArea_value");
+    var showValueError = function(){ setFieldError(valueInput, document.getElementById("fArea_valueError"), actionValueError(area)); };
+    valueInput.addEventListener("input", showValueError);
+    showValueError();
 
     document.getElementById("fArea_imageInput").addEventListener("change", async function(){
       var file = this.files && this.files[0];
@@ -1021,8 +1179,7 @@
       render();
     });
     document.getElementById("fArea_imageClear").addEventListener("click", function(){
-      area.image = null;
-      render();
+      undoable("エリアの画像を外しました", function(){ area.image = null; });
     });
 
     document.getElementById("fArea_bg").addEventListener("input", function(){ area.bgColor = this.value; renderCanvas(); });
@@ -1115,6 +1272,7 @@
   }
 
   function renderJsonPreview(){
+    scheduleSave();
     el.jsonPreview.textContent = JSON.stringify(buildRichMenuObject(activeMenu()), null, 2);
   }
 
@@ -1134,7 +1292,7 @@
       showToast("JSON をコピーしました");
     } catch (err) {
       selectPreformattedText(document.getElementById("jsonPreview"));
-      showToast("自動コピーできないため、テキストを選択状態にしました(⌘/Ctrl+Cでコピー)");
+      showToast("自動でコピーできなかったので、文字を選んでおきました。⌘/Ctrl+C でコピーできます");
     }
   }
 
@@ -1153,7 +1311,7 @@
       showToast("richmenu.json をダウンロードしました");
     } else {
       selectPreformattedText(document.getElementById("jsonPreview"));
-      showToast("この環境では自動保存できないため、コピー用に選択状態にしました");
+      showToast("ここでは保存できないので、文字を選んでおきました。コピーして使ってね");
     }
   }
 
@@ -1471,6 +1629,17 @@
 
   function applyTemplate(template){
     var menu = activeMenu();
+    if (menu.areas.length || menu.bgImage) {
+      var before = snapshot();
+      applyTemplateNow(template, menu);
+      showToast(template.name + " にしました", null, { actionLabel: "元に戻す", onAction: function(){ restoreSnapshot(before); } });
+      return;
+    }
+    applyTemplateNow(template, menu);
+    showToast(template.name + " にしました");
+  }
+
+  function applyTemplateNow(template, menu){
 
     if (template.size) {
       var preset = SIZES[template.size];
@@ -1510,7 +1679,6 @@
     });
     menu.selectedId = null;
     render();
-    showToast(template.name + " を適用しました");
   }
 
   function renderTemplateButtons(){
@@ -1589,6 +1757,18 @@
   el.addMenuBtn.addEventListener("click", addMenu);
 
   el.bgColor.addEventListener("input", function(){ activeMenu().bgColor = this.value; renderCanvas(); });
+  // 画面の幅が変わったら、キャンバスを入る大きさに
+  var resizeFrame = 0;
+  var lastWrapWidth = 0;
+  function onWrapResize(){
+    var w = el.canvas.parentElement.clientWidth;
+    if (w === lastWrapWidth) return;
+    lastWrapWidth = w;
+    cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(renderCanvas);
+  }
+  if (window.ResizeObserver) new ResizeObserver(onWrapResize).observe(el.canvas.parentElement);
+  window.addEventListener("resize", onWrapResize);
   el.bgImageInput.addEventListener("change", async function(){
     var file = this.files && this.files[0];
     if (!file) return;
@@ -1596,13 +1776,12 @@
     render();
   });
   el.clearBgImage.addEventListener("click", function(){
-    activeMenu().bgImage = null;
     el.bgImageInput.value = "";
-    render();
+    undoable("背景の画像を外しました", function(){ activeMenu().bgImage = null; });
   });
 
   el.menuName.addEventListener("input", function(){ activeMenu().name = this.value; renderTabs(); renderJsonPreview(); });
-  el.menuAlias.addEventListener("input", function(){ activeMenu().alias = this.value; renderJsonPreview(); });
+  el.menuAlias.addEventListener("input", function(){ activeMenu().alias = this.value; renderToolbox(); renderJsonPreview(); });
   el.chatBarText.addEventListener("input", function(){ activeMenu().chatBarText = this.value; renderToolbox(); renderJsonPreview(); });
 
   el.addAreaBtn.addEventListener("click", addManualArea);
@@ -1614,6 +1793,21 @@
   renderTemplateButtons();
   renderGridPresetButtons();
   render();
+
+  // Q キット（ui.js は defer で読むので、読み終わってから）：前回の続きの知らせと、はじめての人への案内
+  document.addEventListener("DOMContentLoaded", function(){
+    if (!window.LineShareUI) return;
+    if (restored) {
+      showToast("前回の続きから開きました", null, { actionLabel: "新しく作る", onAction: startFresh });
+    }
+    window.LineShareUI.firstTip("richmenu-studio", [
+      "「テンプレート」か「グリッド」で、ボタンの並びを作る（キャンバスをなぞっても作れます）",
+      "エリアを選ぶと、文字・色・押したときの動きを変えられます",
+      "「🖼️ PNGを書き出す」と JSON を、LINE のリッチメニューに使う"
+    ], document.querySelector(".workspace"));
+  });
+
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(function(){});
 
   if (window.claude && typeof window.claude.use === "function") {
     window.claude.use("downloads").then(function(api){
