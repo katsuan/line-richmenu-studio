@@ -453,34 +453,54 @@
   var MIN_SIZE = 24;
   var DISPLAY_WIDTH = 860; // いちばん大きいときの表示の幅。画面がせまいときは、入る幅まで小さくする
   var STORAGE_KEY = "richmenu-studio:state:v1";
-  var MAX_AREAS = 20;
-  var SIZES = {
-    full: { width: 2500, height: 1686, label: "Full — 2500×1686" },
-    compact: { width: 2500, height: 843, label: "Compact — 2500×843" }
-  };
+  var Core = window.RichMenuCore;
+  var SIZES = Core.SIZES;
+  var MAX_AREAS = Core.LIMIT.AREAS;
+  var TOO_MANY_AREAS = "エリアは最大 " + MAX_AREAS + " 個までです";
 
   var idCounter = 1;
   function uid(){ return "id" + (idCounter++); }
 
+  // ---------- 作るときの形（タブ・エリア） ----------
+  function makeMenu(n, over){
+    return Object.assign({
+      id: uid(),
+      alias: "tab" + n,
+      size: "full",
+      width: SIZES.full.width,
+      height: SIZES.full.height,
+      name: "メニュー" + n,
+      chatBarText: "メニュー" + n,
+      bgColor: "#0B3B21",
+      bgImage: null,
+      areas: [],
+      selectedId: null
+    }, over);
+  }
+
+  function makeArea(label, over){
+    return Object.assign({
+      id: uid(),
+      x: 0, y: 0, w: 0, h: 0,
+      label: label,
+      icon: "",
+      image: null,
+      bgColor: "#1B7A43",
+      textColor: "#FFFFFF",
+      transparent: false,
+      radius: 16,
+      border: "line",
+      fontWeight: "bold",
+      fontSize: null,
+      textShadow: false,
+      actionType: "message",
+      actionValue: label,
+      targetMenuId: null
+    }, over);
+  }
+
   function createInitialState(){
-    return {
-      activeMenuIndex: 0,
-      menus: [
-        {
-          id: uid(),
-          alias: "tab1",
-          size: "full",
-          width: SIZES.full.width,
-          height: SIZES.full.height,
-          name: "メインメニュー",
-          chatBarText: "メニュー",
-          bgColor: "#0B3B21",
-          bgImage: null,
-          areas: [],
-          selectedId: null
-        }
-      ]
-    };
+    return { activeMenuIndex: 0, menus: [makeMenu(1, { name: "メインメニュー", chatBarText: "メニュー" })] };
   }
 
   // 前に作っていたものがあれば、その続きから（この端末の中だけに残す）
@@ -570,9 +590,9 @@
   function loadSavedState(){
     try {
       // 端末に残した中身も「外からの中身」として、形・長さ・数をそろえてから使う
-      var saved = window.RichMenuCore.normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"));
+      var saved = Core.normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"));
       if (!saved) return null;
-      idCounter = window.RichMenuCore.nextIdNumber(saved);
+      idCounter = Core.nextIdNumber(saved);
       return saved;
     } catch (e) {
       return null;
@@ -617,6 +637,16 @@
     render();
     showToast(message, null, { actionLabel: "元に戻す", onAction: function(){ restoreSnapshot(before); } });
   }
+  // なくなるものがあるときだけ「元に戻す」を出す
+  function changeMaybeUndoable(message, losesSomething, change){
+    if (losesSomething) {
+      undoable(message, change);
+      return;
+    }
+    change();
+    render();
+    if (message) showToast(message);
+  }
 
   function startFresh(){
     undoable("新しく作りはじめました", function(){
@@ -640,31 +670,13 @@
 
   // ---------- default factories ----------
   function createDefaultArea(x, y, w, h){
-    var n = activeMenu().areas.length + 1;
-    return {
-      id: uid(),
-      x: x, y: y, w: w, h: h,
-      label: "エリア" + n,
-      icon: "",
-      image: null,
-      bgColor: "#1B7A43",
-      textColor: "#FFFFFF",
-      transparent: false,
-      radius: 16,
-      border: "line",
-      fontWeight: "bold",
-      fontSize: null,
-      textShadow: false,
-      actionType: "message",
-      actionValue: "エリア" + n,
-      targetMenuId: null
-    };
+    return makeArea("エリア" + (activeMenu().areas.length + 1), { x: x, y: y, w: w, h: h });
   }
 
   function addManualArea(){
     var menu = activeMenu();
     if (menu.areas.length >= MAX_AREAS) {
-      showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
+      showToast(TOO_MANY_AREAS, "error");
       return;
     }
     var w = Math.min(400, menu.width);
@@ -681,7 +693,7 @@
     var menu = activeMenu();
     var count = rows * cols;
     if (count > MAX_AREAS) {
-      showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
+      showToast(TOO_MANY_AREAS, "error");
       return;
     }
     var cellW = Math.floor(menu.width / cols);
@@ -690,39 +702,17 @@
     var n = 1;
     for (var r = 0; r < rows; r += 1) {
       for (var c = 0; c < cols; c += 1) {
-        areas.push({
-          id: uid(),
+        areas.push(makeArea("エリア" + n, {
           x: c * cellW,
           y: r * cellH,
           w: cellW,
           h: cellH,
-          label: "エリア" + n,
-          icon: "",
-          image: null,
-          bgColor: n % 2 === 0 ? "#0F5C33" : "#1B7A43",
-          textColor: "#FFFFFF",
-          transparent: false,
-          radius: 16,
-          border: "line",
-          fontWeight: "bold",
-          fontSize: null,
-          textShadow: false,
-          actionType: "message",
-          actionValue: "エリア" + n,
-          targetMenuId: null
-        });
+          bgColor: n % 2 === 0 ? "#0F5C33" : "#1B7A43"
+        }));
         n += 1;
       }
     }
-    var message = rows + "×" + cols + " のグリッドを作りました";
-    if (!menu.areas.length) {
-      menu.areas = areas;
-      menu.selectedId = null;
-      render();
-      showToast(message);
-      return;
-    }
-    undoable(message, function(){
+    changeMaybeUndoable(rows + "×" + cols + " のグリッドを作りました", menu.areas.length > 0, function(){
       menu.areas = areas;
       menu.selectedId = null;
     });
@@ -738,25 +728,8 @@
   }
 
   // ---------- menus (tabs) ----------
-  function createDefaultMenu(){
-    var n = state.menus.length + 1;
-    return {
-      id: uid(),
-      alias: "tab" + n,
-      size: "full",
-      width: SIZES.full.width,
-      height: SIZES.full.height,
-      name: "メニュー" + n,
-      chatBarText: "メニュー" + n,
-      bgColor: "#0B3B21",
-      bgImage: null,
-      areas: [],
-      selectedId: null
-    };
-  }
-
   function addMenu(){
-    var menu = createDefaultMenu();
+    var menu = makeMenu(state.menus.length + 1);
     state.menus.push(menu);
     state.activeMenuIndex = state.menus.length - 1;
     render();
@@ -795,22 +768,20 @@
   }
 
   // ---------- size preset ----------
+  function setMenuSize(menu, key){
+    menu.size = key;
+    menu.width = SIZES[key].width;
+    menu.height = SIZES[key].height;
+  }
+
   function applySizePreset(key){
-    var preset = SIZES[key];
     var menu = activeMenu();
-    var change = function(){
-      menu.size = key;
-      menu.width = preset.width;
-      menu.height = preset.height;
+    var lose = menu.areas.length > 0;
+    changeMaybeUndoable(lose ? "サイズを変えたので、エリアを消しました" : "", lose, function(){
+      setMenuSize(menu, key);
       menu.areas = [];
       menu.selectedId = null;
-    };
-    if (!menu.areas.length) {
-      change();
-      render();
-      return;
-    }
-    undoable("サイズを変えたので、エリアを消しました", change);
+    });
   }
 
   // ---------- pointer interactions ----------
@@ -827,7 +798,7 @@
     if (e.target.closest('[data-role="area"]') || e.target.closest('[data-role="handle"]')) return;
     var menu = activeMenu();
     if (menu.areas.length >= MAX_AREAS) {
-      showToast("エリアは最大 " + MAX_AREAS + " 個までです", "error");
+      showToast(TOO_MANY_AREAS, "error");
       return;
     }
     var p = canvasPointToReal(e);
@@ -918,6 +889,43 @@
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  }
+
+  /**
+   * 選んだ画像を読む。メニューより大きい写真は、メニューの大きさまで縮める
+   * （書き出す画像は同じ。この端末に残せるようになり、動きも軽くなる）。
+   * 読めない画像なら null。
+   */
+  async function loadImageFile(file){
+    try {
+      if (!file || !/^image\//.test(file.type || "image/")) return null;
+      var dataUrl = await readImageAsDataUrl(file);
+      var img = await loadImageAsync(dataUrl);
+      var fit = Core.fitSize(img.naturalWidth || img.width, img.naturalHeight || img.height, SIZES.full.width, SIZES.full.height);
+      var small = fit.width < (img.naturalWidth || img.width);
+      if (!small && /^data:image\/(png|jpeg|gif|webp);/i.test(dataUrl)) return dataUrl;
+      var canvas = document.createElement("canvas");
+      canvas.width = fit.width;
+      canvas.height = fit.height;
+      canvas.getContext("2d").drawImage(img, 0, 0, fit.width, fit.height);
+      return /^data:image\/png;/i.test(dataUrl) ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 画像を選んだら読んで入れる。読めないときは知らせる
+  async function pickImage(input, apply){
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var dataUrl = await loadImageFile(file);
+    input.value = "";
+    if (!dataUrl) {
+      showToast("この画像は読めませんでした。JPEG か PNG の画像を選んでね", "error");
+      return;
+    }
+    apply(dataUrl);
+    render();
   }
 
   // ---------- render ----------
@@ -1072,10 +1080,7 @@
   }
 
   function actionValueError(area){
-    if (area.actionType !== "uri") return "";
-    var v = (area.actionValue || "").trim();
-    if (!v) return "リンク先を入れてね";
-    return /^(https?:|line:|tel:)/i.test(v) ? "" : "https:// などから始まるリンクにしてね";
+    return Core.actionError(area, state.menus);
   }
 
   function renderInspector(){
@@ -1094,14 +1099,16 @@
     var actionFieldsHtml;
     if (isSwitch) {
       var otherMenus = state.menus.filter(function(m){ return m.id !== menu.id; });
+      var hasTarget = otherMenus.some(function(m){ return m.id === area.targetMenuId; });
+      // まだ選んでいないときは「選んでね」を出す（先頭のタブが選ばれているように見せない）
       var optionsHtml = otherMenus.length
-        ? otherMenus.map(function(m){
+        ? (hasTarget ? "" : '<option value="" selected>（選んでね）</option>') + otherMenus.map(function(m){
             return '<option value="' + m.id + '"' + (m.id === area.targetMenuId ? " selected" : "") + '>' + escapeHtml(m.name || "無題") + '</option>';
           }).join("")
         : '<option value="">(他にタブがありません)</option>';
       actionFieldsHtml =
-        '<div class="field"><label>切り替え先タブ</label><select id="fArea_target"' + (otherMenus.length ? "" : " disabled") + '>' + optionsHtml + '</select></div>' +
-        '<div class="field"><label>data(任意・受信側での判定用)</label><input type="text" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"></div>';
+        '<div class="field"><label for="fArea_target">切り替え先タブ</label><select id="fArea_target"' + (otherMenus.length ? "" : " disabled") + ' aria-describedby="fArea_valueError">' + optionsHtml + '</select></div>' +
+        '<div class="field"><label for="fArea_value">data(任意・受信側での判定用)</label><input type="text" id="fArea_value" value="' + escapeHtml(area.actionValue) + '" aria-describedby="fArea_valueError"><p class="field-error" id="fArea_valueError" aria-live="polite"></p></div>';
     } else {
       actionFieldsHtml =
         '<div class="field"><label for="fArea_value">' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"' + (area.actionType === "uri" ? ' inputmode="url" autocapitalize="off" spellcheck="false"' : "") + ' aria-describedby="fArea_valueError"><p class="field-error" id="fArea_valueError" aria-live="polite"></p></div>';
@@ -1162,19 +1169,15 @@
       '</div>';
 
     document.getElementById("deleteAreaBtn").addEventListener("click", function(){ deleteArea(area.id); });
-    bindText("fArea_label", function(v){ area.label = v; });
-    bindText("fArea_icon", function(v){ area.icon = v; });
-    bindText("fArea_value", function(v){ area.actionValue = v; });
     var valueInput = document.getElementById("fArea_value");
     var showValueError = function(){ setFieldError(valueInput, document.getElementById("fArea_valueError"), actionValueError(area)); };
-    valueInput.addEventListener("input", showValueError);
+    bindText("fArea_label", function(v){ area.label = v; showValueError(); });
+    bindText("fArea_icon", function(v){ area.icon = v; });
+    bindText("fArea_value", function(v){ area.actionValue = v; showValueError(); });
     showValueError();
 
-    document.getElementById("fArea_imageInput").addEventListener("change", async function(){
-      var file = this.files && this.files[0];
-      if (!file) return;
-      area.image = await readImageAsDataUrl(file);
-      render();
+    document.getElementById("fArea_imageInput").addEventListener("change", function(){
+      pickImage(this, function(dataUrl){ area.image = dataUrl; });
     });
     document.getElementById("fArea_imageClear").addEventListener("click", function(){
       undoable("エリアの画像を外しました", function(){ area.image = null; });
@@ -1203,7 +1206,7 @@
     document.getElementById("fArea_type").addEventListener("change", function(){ area.actionType = this.value; render(); });
     var targetSelect = document.getElementById("fArea_target");
     if (targetSelect) {
-      targetSelect.addEventListener("change", function(){ area.targetMenuId = this.value || null; renderJsonPreview(); });
+      targetSelect.addEventListener("change", function(){ area.targetMenuId = this.value || null; render(); });
     }
 
     bindNumber("fArea_x", function(v){ area.x = clampNum(v, 0, activeMenu().width - area.w); });
@@ -1233,7 +1236,7 @@
   }
 
   function buildRichMenuObject(menu){
-    return window.RichMenuCore.buildRichMenuObject(menu || activeMenu(), state.menus);
+    return Core.buildRichMenuObject(menu || activeMenu(), state.menus);
   }
 
   function renderJsonPreview(){
@@ -1463,31 +1466,64 @@
     return canvas;
   }
 
+  function canvasToBlob(canvas, type, quality){
+    return new Promise(function(resolve){
+      if (canvas.toBlob) canvas.toBlob(resolve, type, quality);
+      else resolve(dataUrlToBlobSync(canvas.toDataURL(type, quality)));
+    });
+  }
+
+  /**
+   * LINE に入れられる画像（1MB まで）にする。PNG で入ればそのまま PNG。
+   * 写真などで大きくなるときは、入るまで画質を下げた JPEG にする。
+   */
+  async function encodeForLine(canvas){
+    var png = await canvasToBlob(canvas, "image/png");
+    if (png && png.size <= Core.LIMIT.LINE_IMAGE) return { blob: png, ext: "png", jpeg: false };
+    var qualities = [0.92, 0.85, 0.75, 0.65, 0.5];
+    var jpeg = null;
+    for (var i = 0; i < qualities.length; i += 1) {
+      jpeg = await canvasToBlob(canvas, "image/jpeg", qualities[i]);
+      if (jpeg && jpeg.size <= Core.LIMIT.LINE_IMAGE) break;
+    }
+    return { blob: jpeg || png, ext: "jpg", jpeg: true, tooLarge: !jpeg || jpeg.size > Core.LIMIT.LINE_IMAGE };
+  }
+
+  var previewUrl = null;
   async function exportPng(){
     el.exportPngBtn.disabled = true;
     try {
       var menu = activeMenu();
       var canvas = await renderExportCanvas(menu);
-      var dataUrl = canvas.toDataURL("image/png");
-      el.pngPreviewImg.src = dataUrl;
+      var out = await encodeForLine(canvas);
+      var filename = sanitizeFilename(menu.name) + "." + out.ext;
+      var kind = out.jpeg ? "JPEG" : "PNG";
+      // PNG だと 1MB をこえて LINE に入らないときは、JPEG にしたことを知らせる
+      var note = out.tooLarge ? "（1MB をこえています。LINE に入らないので、写真を小さくしてね）"
+        : out.jpeg ? "（PNG だと 1MB をこえて LINE に入らないので、JPEG にしました）" : "";
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(out.blob);
+      el.pngPreviewImg.src = previewUrl;
       el.pngPreview.classList.add("is-visible");
 
       if (downloadsApi) {
         try {
-          var blob = await (await fetch(dataUrl)).blob();
-          await downloadsApi.save({ filename: sanitizeFilename(menu.name) + ".png", data: blob });
-          el.pngPreviewHint.textContent = "保存しました。長押し/右クリックでも保存できます。";
-          showToast("PNG を保存しました");
+          await downloadsApi.save({ filename: filename, data: out.blob });
+          el.pngPreviewHint.textContent = "保存しました。長押し/右クリックでも保存できます。" + note;
+          showToast(kind + " を保存しました" + note);
         } catch (err) {
-          el.pngPreviewHint.textContent = "自動保存に失敗したため、下の画像を長押し/右クリックして保存してください。";
+          el.pngPreviewHint.textContent = "自動保存に失敗したため、下の画像を長押し/右クリックして保存してください。" + note;
           showToast(downloadErrorMessage(err), "error");
         }
-      } else if (triggerBrowserDownload(sanitizeFilename(menu.name) + ".png", dataUrlToBlobSync(dataUrl), "image/png")) {
-        el.pngPreviewHint.textContent = "ダウンロードしました。長押し/右クリックでも保存できます。";
-        showToast("PNG をダウンロードしました");
+      } else if (triggerBrowserDownload(filename, out.blob, out.blob.type)) {
+        el.pngPreviewHint.textContent = "ダウンロードしました。長押し/右クリックでも保存できます。" + note;
+        showToast(kind + " をダウンロードしました" + note);
       } else {
-        el.pngPreviewHint.textContent = "この環境では自動保存できません。下の画像を長押し/右クリックして保存してください。";
+        el.pngPreviewHint.textContent = "この環境では自動保存できません。下の画像を長押し/右クリックして保存してください。" + note;
       }
+    } catch (err) {
+      console.error(err);
+      showToast("画像を作れませんでした。画像を外すか小さくして、もう一度ためしてね", "error");
     } finally {
       el.exportPngBtn.disabled = false;
     }
@@ -1594,24 +1630,13 @@
 
   function applyTemplate(template){
     var menu = activeMenu();
-    if (menu.areas.length || menu.bgImage) {
-      var before = snapshot();
+    changeMaybeUndoable(template.name + " にしました", Boolean(menu.areas.length || menu.bgImage), function(){
       applyTemplateNow(template, menu);
-      showToast(template.name + " にしました", null, { actionLabel: "元に戻す", onAction: function(){ restoreSnapshot(before); } });
-      return;
-    }
-    applyTemplateNow(template, menu);
-    showToast(template.name + " にしました");
+    });
   }
 
   function applyTemplateNow(template, menu){
-
-    if (template.size) {
-      var preset = SIZES[template.size];
-      menu.size = template.size;
-      menu.width = preset.width;
-      menu.height = preset.height;
-    }
+    if (template.size) setMenuSize(menu, template.size);
 
     if (template.bg) {
       menu.bgColor = template.bg.colors[0];
@@ -1620,15 +1645,12 @@
 
     menu.areas = template.areas.map(function(spec){
       var transparent = !!spec.transparent;
-      return {
-        id: uid(),
+      return makeArea(spec.label, {
         x: Math.round(spec.xr * menu.width),
         y: Math.round(spec.yr * menu.height),
         w: Math.round(spec.wr * menu.width),
         h: Math.round(spec.hr * menu.height),
-        label: spec.label,
         icon: spec.icon || "",
-        image: null,
         bgColor: spec.bgColor || "#1B7A43",
         textColor: spec.textColor || "#FFFFFF",
         transparent: transparent,
@@ -1636,14 +1658,10 @@
         border: spec.border || "line",
         fontWeight: spec.fontWeight || "bold",
         fontSize: spec.fontSize || null,
-        textShadow: spec.textShadow !== undefined ? spec.textShadow : transparent,
-        actionType: "message",
-        actionValue: spec.label,
-        targetMenuId: null
-      };
+        textShadow: spec.textShadow !== undefined ? spec.textShadow : transparent
+      });
     });
     menu.selectedId = null;
-    render();
   }
 
   function renderTemplateButtons(){
@@ -1734,11 +1752,9 @@
   }
   if (window.ResizeObserver) new ResizeObserver(onWrapResize).observe(el.canvas.parentElement);
   window.addEventListener("resize", onWrapResize);
-  el.bgImageInput.addEventListener("change", async function(){
-    var file = this.files && this.files[0];
-    if (!file) return;
-    activeMenu().bgImage = await readImageAsDataUrl(file);
-    render();
+  el.bgImageInput.addEventListener("change", function(){
+    var menu = activeMenu();
+    pickImage(this, function(dataUrl){ menu.bgImage = dataUrl; });
   });
   el.clearBgImage.addEventListener("click", function(){
     el.bgImageInput.value = "";

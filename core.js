@@ -2,6 +2,8 @@
  * リッチメニュースタジオの、画面に触らない部分。
  * - normalizeState：この端末に残した中身を、使ってよい形・長さ・数にそろえて読む
  * - buildRichMenuObject：LINE の richmenu の JSON を作る
+ * - actionError：LINE に断られるアクションを、書き出す前に見つける
+ * - fitSize：大きな画像を、形を変えずに縮める大きさ
  * ブラウザでは window.RichMenuCore、node のテストでは require で使う。
  */
 (function (root, factory) {
@@ -24,8 +26,12 @@
     LABEL: 100,
     ICON: 20,
     ACTION_VALUE: 1000,
-    IMAGE: 12 * 1024 * 1024
+    IMAGE: 12 * 1024 * 1024,
+    LINE_TEXT: 300,       // LINE の message の text・postback の data・displayText の上限
+    LINE_URI: 1000,       // LINE の uri の上限
+    LINE_IMAGE: 1024 * 1024 // LINE に入れられるリッチメニューの画像の大きさ（1MB まで）
   };
+  var URI = /^(https?:|line:|tel:)/i;
   var ID = /^id\d{1,9}$/;
   var COLOR = /^#[0-9a-fA-F]{6}$/;
   var IMAGE = /^data:image\/[a-z0-9.+-]{1,30};base64,[A-Za-z0-9+/=]+$/;
@@ -141,6 +147,58 @@
     return max + 1;
   }
 
+  function findMenu(menus, id) {
+    for (var i = 0; i < menus.length; i += 1) {
+      if (menus[i].id === id) return menus[i];
+    }
+    return null;
+  }
+
+  /** LINE に断られるアクションなら、その理由（やさしい言葉）。よければ "" */
+  function actionError(a, menus) {
+    var value = a.actionValue || "";
+    if (a.actionType === "uri") {
+      var v = value.trim();
+      if (!v) return "リンク先を入れてね";
+      if (!URI.test(v)) return "https:// などから始まるリンクにしてね";
+      if (v.length > LIMIT.LINE_URI) return "リンクは " + LIMIT.LINE_URI + " 文字までにしてね";
+      return "";
+    }
+    if (a.actionType === "postback") {
+      if (!value) return "postback data を入れてね";
+      if (value.length > LIMIT.LINE_TEXT) return "postback data は " + LIMIT.LINE_TEXT + " 文字までにしてね";
+      if ((a.label || "").length > LIMIT.LINE_TEXT) return "ラベルは " + LIMIT.LINE_TEXT + " 文字までにしてね";
+      return "";
+    }
+    if (a.actionType === "richmenuswitch") {
+      if (!a.targetMenuId || !findMenu(menus || [], a.targetMenuId)) return "切り替え先のタブを選んでね";
+      if (value.length > LIMIT.LINE_TEXT) return "data は " + LIMIT.LINE_TEXT + " 文字までにしてね";
+      return "";
+    }
+    var text = value || a.label || "";
+    if (!text) return "送る文字を入れてね";
+    if (text.length > LIMIT.LINE_TEXT) return "送る文字は " + LIMIT.LINE_TEXT + " 文字までにしてね";
+    return "";
+  }
+
+  /** 縦横の比を変えずに、max の中に入る大きさ（小さいときはそのまま） */
+  function fitSize(width, height, maxWidth, maxHeight) {
+    var ratio = Math.min(1, maxWidth / width, maxHeight / height);
+    return { width: Math.max(1, Math.round(width * ratio)), height: Math.max(1, Math.round(height * ratio)) };
+  }
+
+  /** 四捨五入しても、メニューの外にはみ出さない範囲（はみ出すと LINE に断られる） */
+  function bounds(a, menu) {
+    var x = Math.min(Math.max(Math.round(a.x), 0), menu.width - 1);
+    var y = Math.min(Math.max(Math.round(a.y), 0), menu.height - 1);
+    return {
+      x: x,
+      y: y,
+      width: Math.max(1, Math.min(Math.round(a.w), menu.width - x)),
+      height: Math.max(1, Math.min(Math.round(a.h), menu.height - y))
+    };
+  }
+
   function buildAction(a, menus) {
     if (a.actionType === "postback") {
       return { type: "postback", data: a.actionValue || "", displayText: a.label || undefined };
@@ -149,10 +207,7 @@
       return { type: "uri", uri: a.actionValue || "https://" };
     }
     if (a.actionType === "richmenuswitch") {
-      var targetMenu = null;
-      for (var i = 0; i < menus.length; i += 1) {
-        if (menus[i].id === a.targetMenuId) { targetMenu = menus[i]; break; }
-      }
+      var targetMenu = findMenu(menus, a.targetMenuId);
       return {
         type: "richmenuswitch",
         richMenuAliasId: targetMenu ? (targetMenu.alias || targetMenu.id) : "",
@@ -171,7 +226,7 @@
       chatBarText: (menu.chatBarText || "メニュー").slice(0, 14),
       areas: menu.areas.map(function (a) {
         return {
-          bounds: { x: Math.round(a.x), y: Math.round(a.y), width: Math.round(a.w), height: Math.round(a.h) },
+          bounds: bounds(a, menu),
           action: buildAction(a, menus || [menu])
         };
       })
@@ -183,6 +238,8 @@
     LIMIT: LIMIT,
     normalizeState: normalizeState,
     nextIdNumber: nextIdNumber,
-    buildRichMenuObject: buildRichMenuObject
+    buildRichMenuObject: buildRichMenuObject,
+    actionError: actionError,
+    fitSize: fitSize
   };
 });

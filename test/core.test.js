@@ -101,3 +101,38 @@ test("書き出す JSON は LINE の richmenu の形", () => {
   // JSON にしても中身が変わらない（そのまま API に渡せる）
   assert.deepEqual(JSON.parse(JSON.stringify(json)).areas.length, 4);
 });
+
+test("ボタンの範囲は、四捨五入してもメニューの外にはみ出さない", () => {
+  // ドラッグで小数になった位置（右下ぎりぎり）
+  const m = menu({ areas: [area({ x: 1249.5, w: 1250.5, y: 842.5, h: 843.5 })] });
+  const b = core.buildRichMenuObject(m, [m]).areas[0].bounds;
+  assert.ok(b.x + b.width <= 2500, JSON.stringify(b));
+  assert.ok(b.y + b.height <= 1686, JSON.stringify(b));
+  assert.ok(b.width >= 1250 && b.height >= 843);
+});
+
+test("LINE に断られるアクションを、書き出す前に知らせる", () => {
+  const sub = menu({ id: "id9", alias: "tab2", areas: [] });
+  const err = (over) => core.actionError(area(over), [menu(), sub]);
+  assert.equal(err({}), "");
+  assert.equal(err({ actionType: "uri", actionValue: "https://example.com" }), "");
+  assert.equal(err({ actionType: "richmenuswitch", targetMenuId: "id9" }), "");
+  assert.equal(err({ actionType: "postback", actionValue: "a=1", label: "" }), "");
+  // 送る文字が空（ラベルも空）
+  assert.ok(err({ actionValue: "", label: "" }));
+  assert.ok(err({ actionValue: "あ".repeat(301) }));
+  assert.ok(err({ actionType: "postback", actionValue: "" }));
+  assert.ok(err({ actionType: "postback", actionValue: "x".repeat(301) }));
+  assert.ok(err({ actionType: "uri", actionValue: "" }));
+  assert.ok(err({ actionType: "uri", actionValue: "javascript:alert(1)" })); // qcheck-ok: W8 テストで入れる危ない文字
+  assert.ok(err({ actionType: "uri", actionValue: "https://example.com/" + "a".repeat(1000) }));
+  assert.ok(err({ actionType: "richmenuswitch", targetMenuId: null }));
+  assert.ok(err({ actionType: "richmenuswitch", targetMenuId: "id9", actionValue: "x".repeat(301) }));
+});
+
+test("大きな画像は、メニューの大きさまで縮める（形は変えない）", () => {
+  assert.deepEqual(core.fitSize(4000, 3000, 2500, 1686), { width: 2248, height: 1686 });
+  assert.deepEqual(core.fitSize(6000, 1000, 2500, 1686), { width: 2500, height: 417 });
+  assert.deepEqual(core.fitSize(800, 600, 2500, 1686), { width: 800, height: 600 });
+  assert.equal(core.LIMIT.LINE_IMAGE, 1024 * 1024);
+});
