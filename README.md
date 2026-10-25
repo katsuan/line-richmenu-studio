@@ -18,11 +18,21 @@ LINE リッチメニューをブラウザ上でデザインし、Messaging API �
 python3 -m http.server 8000
 ```
 
-`index.html` が画面、`core.js` が画面に触らない部分（この端末に残した中身を読む・richmenu の JSON を作る・LINE に断られるアクションを見つける）です。フォントは Google Fonts、トーストなどの部品は [おくるん](https://github.com/katsuan/line-share) の共通部品（`shared/ui.css`・`ui.js`）を使います。
+| ファイル | 役わり |
+|---|---|
+| `index.html` | 画面（公開 URL） |
+| `app.js` | 画面の入口：状態・この端末に残す・元に戻す・キャンバスの操作・設定欄・JSON と画像の書き出し・テンプレート |
+| `style.css` | 見た目 |
+| `js/richmenu.js` | 画面に触らない部分：この端末に残した中身を読む・richmenu の JSON を作る・LINE に断られるアクションを見つける・画像を縮める大きさ |
+| `core.js` | `js/richmenu.js` の前の名前の写し（古い画面を覚えている LINE のため）。**2026-11-25 に消す** |
+| `sw.js` | 電波がないときに開く仕組み（おくるんの `shared/sw-core.js`） |
+| `test/` | `js/richmenu.js` のテスト |
+
+フォントは Google Fonts、トーストなどの部品は [おくるん](https://github.com/katsuan/line-share) の共通部品（`shared/ui.css`・`ui.js`）を使います。
 
 ## テスト
 
-`core.js` のテストです（node の標準のテスト。npm の部品は要りません）。
+`js/richmenu.js` のテストです（node の標準のテスト。npm の部品は要りません）。
 
 ```bash
 node --test test/

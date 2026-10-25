@@ -1,5 +1,5 @@
 /**
- * リッチメニュースタジオの、画面に触らない部分。
+ * リッチメニュースタジオの、画面に触らない部分（index.html から読む。app.js が window.RichMenuCore として使う）。
  * - normalizeState：この端末に残した中身を、使ってよい形・長さ・数にそろえて読む
  * - buildRichMenuObject：LINE の richmenu の JSON を作る
  * - actionError：LINE に断られるアクションを、書き出す前に見つける
@@ -39,24 +39,30 @@
   var BORDERS = ["line", "shadow", "none"];
   var WEIGHTS = ["regular", "semibold", "bold", "extrabold"];
 
+  // 文字なら max 字まで、ちがえば fallback
   function text(value, max, fallback) {
     return typeof value === "string" ? value.slice(0, max) : (fallback || "");
   }
+  // #RRGGBB の色なら、そのまま。ちがえば fallback
   function color(value, fallback) {
     return typeof value === "string" && COLOR.test(value) ? value : fallback;
   }
+  // data:image の画像（上限まで）なら、そのまま。ちがえば null
   function image(value) {
     return typeof value === "string" && value.length <= LIMIT.IMAGE && IMAGE.test(value) ? value : null;
   }
+  // 数なら min〜max におさめる。ちがえば fallback
   function num(value, min, max, fallback) {
     var n = Number(value);
     if (typeof value !== "number" || !isFinite(n)) return fallback;
     return Math.min(Math.max(n, min), max);
   }
+  // list の中のものなら、そのまま。ちがえば fallback
   function oneOf(value, list, fallback) {
     return list.indexOf(value) !== -1 ? value : fallback;
   }
 
+  // エリア1つを、使ってよい形にそろえる（使えなければ null）
   function normalizeArea(a, menu) {
     if (!a || typeof a !== "object" || typeof a.id !== "string" || !ID.test(a.id)) return null;
     var w = num(a.w, 24, menu.width, 400);
@@ -84,6 +90,7 @@
     };
   }
 
+  // タブ1つを、使ってよい形にそろえる（使えなければ null）
   function normalizeMenu(m) {
     if (!m || typeof m !== "object" || typeof m.id !== "string" || !ID.test(m.id)) return null;
     var size = oneOf(m.size, ["full", "compact"], "full");
@@ -147,6 +154,7 @@
     return max + 1;
   }
 
+  // menus から id のタブを探す（なければ null）
   function findMenu(menus, id) {
     for (var i = 0; i < menus.length; i += 1) {
       if (menus[i].id === id) return menus[i];
@@ -199,6 +207,7 @@
     };
   }
 
+  // エリアのアクションを、LINE の action の形に
   function buildAction(a, menus) {
     if (a.actionType === "postback") {
       return { type: "postback", data: a.actionValue || "", displayText: a.label || undefined };

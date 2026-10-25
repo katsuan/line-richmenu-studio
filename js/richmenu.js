@@ -1,0 +1,254 @@
+/**
+ * リッチメニュースタジオの、画面に触らない部分（index.html から読む。app.js が window.RichMenuCore として使う）。
+ * - normalizeState：この端末に残した中身を、使ってよい形・長さ・数にそろえて読む
+ * - buildRichMenuObject：LINE の richmenu の JSON を作る
+ * - actionError：LINE に断られるアクションを、書き出す前に見つける
+ * - fitSize：大きな画像を、形を変えずに縮める大きさ
+ * ブラウザでは window.RichMenuCore、node のテストでは require で使う。
+ */
+(function (root, factory) {
+  var core = factory();
+  if (typeof module === "object" && module.exports) module.exports = core;
+  else root.RichMenuCore = core;
+})(typeof self !== "undefined" ? self : this, function () {
+  "use strict";
+
+  var SIZES = {
+    full: { width: 2500, height: 1686 },
+    compact: { width: 2500, height: 843 }
+  };
+  var LIMIT = {
+    MENUS: 20,
+    AREAS: 20,
+    NAME: 300,        // LINE の name の上限
+    ALIAS: 32,        // LINE のリッチメニューの別名の上限
+    CHAT_BAR: 50,     // 画面では14字で知らせる。読むときは少し広めに残す
+    LABEL: 100,
+    ICON: 20,
+    ACTION_VALUE: 1000,
+    IMAGE: 12 * 1024 * 1024,
+    LINE_TEXT: 300,       // LINE の message の text・postback の data・displayText の上限
+    LINE_URI: 1000,       // LINE の uri の上限
+    LINE_IMAGE: 1024 * 1024 // LINE に入れられるリッチメニューの画像の大きさ（1MB まで）
+  };
+  var URI = /^(https?:|line:|tel:)/i;
+  var ID = /^id\d{1,9}$/;
+  var COLOR = /^#[0-9a-fA-F]{6}$/;
+  var IMAGE = /^data:image\/[a-z0-9.+-]{1,30};base64,[A-Za-z0-9+/=]+$/;
+  var ACTION_TYPES = ["message", "postback", "uri", "richmenuswitch"];
+  var BORDERS = ["line", "shadow", "none"];
+  var WEIGHTS = ["regular", "semibold", "bold", "extrabold"];
+
+  // 文字なら max 字まで、ちがえば fallback
+  function text(value, max, fallback) {
+    return typeof value === "string" ? value.slice(0, max) : (fallback || "");
+  }
+  // #RRGGBB の色なら、そのまま。ちがえば fallback
+  function color(value, fallback) {
+    return typeof value === "string" && COLOR.test(value) ? value : fallback;
+  }
+  // data:image の画像（上限まで）なら、そのまま。ちがえば null
+  function image(value) {
+    return typeof value === "string" && value.length <= LIMIT.IMAGE && IMAGE.test(value) ? value : null;
+  }
+  // 数なら min〜max におさめる。ちがえば fallback
+  function num(value, min, max, fallback) {
+    var n = Number(value);
+    if (typeof value !== "number" || !isFinite(n)) return fallback;
+    return Math.min(Math.max(n, min), max);
+  }
+  // list の中のものなら、そのまま。ちがえば fallback
+  function oneOf(value, list, fallback) {
+    return list.indexOf(value) !== -1 ? value : fallback;
+  }
+
+  // エリア1つを、使ってよい形にそろえる（使えなければ null）
+  function normalizeArea(a, menu) {
+    if (!a || typeof a !== "object" || typeof a.id !== "string" || !ID.test(a.id)) return null;
+    var w = num(a.w, 24, menu.width, 400);
+    var h = num(a.h, 24, menu.height, 400);
+    return {
+      id: a.id,
+      x: num(a.x, 0, menu.width - w, 0),
+      y: num(a.y, 0, menu.height - h, 0),
+      w: w,
+      h: h,
+      label: text(a.label, LIMIT.LABEL),
+      icon: text(a.icon, LIMIT.ICON),
+      image: image(a.image),
+      bgColor: color(a.bgColor, "#1B7A43"),
+      textColor: color(a.textColor, "#FFFFFF"),
+      transparent: a.transparent === true,
+      radius: num(a.radius, 0, 400, 16),
+      border: oneOf(a.border, BORDERS, "line"),
+      fontWeight: oneOf(a.fontWeight, WEIGHTS, "bold"),
+      fontSize: a.fontSize == null ? null : num(a.fontSize, 8, 400, null),
+      textShadow: a.textShadow === true,
+      actionType: oneOf(a.actionType, ACTION_TYPES, "message"),
+      actionValue: text(a.actionValue, LIMIT.ACTION_VALUE),
+      targetMenuId: typeof a.targetMenuId === "string" && ID.test(a.targetMenuId) ? a.targetMenuId : null
+    };
+  }
+
+  // タブ1つを、使ってよい形にそろえる（使えなければ null）
+  function normalizeMenu(m) {
+    if (!m || typeof m !== "object" || typeof m.id !== "string" || !ID.test(m.id)) return null;
+    var size = oneOf(m.size, ["full", "compact"], "full");
+    var menu = {
+      id: m.id,
+      alias: text(m.alias, LIMIT.ALIAS),
+      size: size,
+      width: SIZES[size].width,
+      height: SIZES[size].height,
+      name: text(m.name, LIMIT.NAME),
+      chatBarText: text(m.chatBarText, LIMIT.CHAT_BAR),
+      bgColor: color(m.bgColor, "#0B3B21"),
+      bgImage: image(m.bgImage),
+      areas: [],
+      selectedId: null
+    };
+    var seen = {};
+    (Array.isArray(m.areas) ? m.areas : []).slice(0, LIMIT.AREAS).forEach(function (raw) {
+      var area = normalizeArea(raw, menu);
+      if (area && !seen[area.id]) {
+        seen[area.id] = true;
+        menu.areas.push(area);
+      }
+    });
+    if (typeof m.selectedId === "string" && seen[m.selectedId]) menu.selectedId = m.selectedId;
+    return menu;
+  }
+
+  /** 端末に残した中身を読む。使えないときは null（はじめから作る） */
+  function normalizeState(saved) {
+    if (!saved || typeof saved !== "object" || !Array.isArray(saved.menus)) return null;
+    var seen = {};
+    var menus = [];
+    saved.menus.slice(0, LIMIT.MENUS).forEach(function (raw) {
+      var menu = normalizeMenu(raw);
+      if (menu && !seen[menu.id]) {
+        seen[menu.id] = true;
+        menus.push(menu);
+      }
+    });
+    if (!menus.length) return null;
+    // 消えたタブへの切りかえは外す
+    menus.forEach(function (m) {
+      m.areas.forEach(function (a) {
+        if (a.targetMenuId && !seen[a.targetMenuId]) a.targetMenuId = null;
+      });
+    });
+    return {
+      activeMenuIndex: Math.floor(num(saved.activeMenuIndex, 0, menus.length - 1, 0)),
+      menus: menus
+    };
+  }
+
+  /** 次に作る id の番号（同じ id ができないように） */
+  function nextIdNumber(state) {
+    var max = 0;
+    (state.menus || []).forEach(function (m) {
+      max = Math.max(max, Number(m.id.slice(2)));
+      m.areas.forEach(function (a) { max = Math.max(max, Number(a.id.slice(2))); });
+    });
+    return max + 1;
+  }
+
+  // menus から id のタブを探す（なければ null）
+  function findMenu(menus, id) {
+    for (var i = 0; i < menus.length; i += 1) {
+      if (menus[i].id === id) return menus[i];
+    }
+    return null;
+  }
+
+  /** LINE に断られるアクションなら、その理由（やさしい言葉）。よければ "" */
+  function actionError(a, menus) {
+    var value = a.actionValue || "";
+    if (a.actionType === "uri") {
+      var v = value.trim();
+      if (!v) return "リンク先を入れてね";
+      if (!URI.test(v)) return "https:// などから始まるリンクにしてね";
+      if (v.length > LIMIT.LINE_URI) return "リンクは " + LIMIT.LINE_URI + " 文字までにしてね";
+      return "";
+    }
+    if (a.actionType === "postback") {
+      if (!value) return "postback data を入れてね";
+      if (value.length > LIMIT.LINE_TEXT) return "postback data は " + LIMIT.LINE_TEXT + " 文字までにしてね";
+      if ((a.label || "").length > LIMIT.LINE_TEXT) return "ラベルは " + LIMIT.LINE_TEXT + " 文字までにしてね";
+      return "";
+    }
+    if (a.actionType === "richmenuswitch") {
+      if (!a.targetMenuId || !findMenu(menus || [], a.targetMenuId)) return "切り替え先のタブを選んでね";
+      if (value.length > LIMIT.LINE_TEXT) return "data は " + LIMIT.LINE_TEXT + " 文字までにしてね";
+      return "";
+    }
+    var text = value || a.label || "";
+    if (!text) return "送る文字を入れてね";
+    if (text.length > LIMIT.LINE_TEXT) return "送る文字は " + LIMIT.LINE_TEXT + " 文字までにしてね";
+    return "";
+  }
+
+  /** 縦横の比を変えずに、max の中に入る大きさ（小さいときはそのまま） */
+  function fitSize(width, height, maxWidth, maxHeight) {
+    var ratio = Math.min(1, maxWidth / width, maxHeight / height);
+    return { width: Math.max(1, Math.round(width * ratio)), height: Math.max(1, Math.round(height * ratio)) };
+  }
+
+  /** 四捨五入しても、メニューの外にはみ出さない範囲（はみ出すと LINE に断られる） */
+  function bounds(a, menu) {
+    var x = Math.min(Math.max(Math.round(a.x), 0), menu.width - 1);
+    var y = Math.min(Math.max(Math.round(a.y), 0), menu.height - 1);
+    return {
+      x: x,
+      y: y,
+      width: Math.max(1, Math.min(Math.round(a.w), menu.width - x)),
+      height: Math.max(1, Math.min(Math.round(a.h), menu.height - y))
+    };
+  }
+
+  // エリアのアクションを、LINE の action の形に
+  function buildAction(a, menus) {
+    if (a.actionType === "postback") {
+      return { type: "postback", data: a.actionValue || "", displayText: a.label || undefined };
+    }
+    if (a.actionType === "uri") {
+      return { type: "uri", uri: a.actionValue || "https://" };
+    }
+    if (a.actionType === "richmenuswitch") {
+      var targetMenu = findMenu(menus, a.targetMenuId);
+      return {
+        type: "richmenuswitch",
+        richMenuAliasId: targetMenu ? (targetMenu.alias || targetMenu.id) : "",
+        data: a.actionValue || ""
+      };
+    }
+    return { type: "message", text: a.actionValue || a.label || "" };
+  }
+
+  /** LINE の richmenu の JSON（POST /v2/bot/richmenu にそのまま渡せる形） */
+  function buildRichMenuObject(menu, menus) {
+    return {
+      size: { width: menu.width, height: menu.height },
+      selected: false,
+      name: menu.name || "richmenu",
+      chatBarText: (menu.chatBarText || "メニュー").slice(0, 14),
+      areas: menu.areas.map(function (a) {
+        return {
+          bounds: bounds(a, menu),
+          action: buildAction(a, menus || [menu])
+        };
+      })
+    };
+  }
+
+  return {
+    SIZES: SIZES,
+    LIMIT: LIMIT,
+    normalizeState: normalizeState,
+    nextIdNumber: nextIdNumber,
+    buildRichMenuObject: buildRichMenuObject,
+    actionError: actionError,
+    fitSize: fitSize
+  };
+});

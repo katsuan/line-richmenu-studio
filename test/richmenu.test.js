@@ -2,7 +2,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert");
-const core = require("../core.js");
+const core = require("../js/richmenu.js");
 
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const area = (over = {}) => ({
@@ -135,4 +135,11 @@ test("大きな画像は、メニューの大きさまで縮める（形は変�
   assert.deepEqual(core.fitSize(6000, 1000, 2500, 1686), { width: 2500, height: 417 });
   assert.deepEqual(core.fitSize(800, 600, 2500, 1686), { width: 800, height: 600 });
   assert.equal(core.LIMIT.LINE_IMAGE, 1024 * 1024);
+});
+
+test("前の名前の core.js は、js/richmenu.js と同じ中身（古い画面を覚えている LINE のため。2026-11-25 に消す）", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  assert.equal(read("core.js"), read("js/richmenu.js"));
 });
