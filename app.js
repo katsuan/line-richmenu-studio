@@ -124,6 +124,11 @@
     });
   }
 
+  // 文字の大きさを決めていないエリアの字の大きさ（実寸。高さに合わせて 24〜88）
+  function autoFontSize(area){
+    return Math.max(24, Math.min(88, area.h * 0.14));
+  }
+
   // 文字の太さの名前を CSS の数に
   function fontWeightCss(w){
     if (w === "regular") return 500;
@@ -636,7 +641,7 @@
         box.style.boxShadow = "none";
       }
 
-      var autoFontSizeReal = Math.max(24, Math.min(88, area.h * 0.14));
+      var autoFontSizeReal = autoFontSize(area);
       var labelFontSize = Math.round((area.fontSize || autoFontSizeReal) * s);
       var textShadowCss = area.textShadow ? "text-shadow:0 1px 3px rgba(0,0,0,0.65),0 0 8px rgba(0,0,0,0.35);" : "";
       var labelStyle = "font-weight:" + fontWeightCss(area.fontWeight) + ";" + textShadowCss + "font-size:" + labelFontSize + "px;";
@@ -683,6 +688,12 @@
       return;
     }
 
+    el.inspector.innerHTML = inspectorHtml(area, menu);
+    bindInspector(area);
+  }
+
+  // 右の設定欄の HTML（選んだエリアの値を入れる。文字は esc する）
+  function inspectorHtml(area, menu){
     var isSwitch = area.actionType === "richmenuswitch";
     var actionValueLabel = area.actionType === "uri" ? "リンク先 URL" :
       area.actionType === "postback" ? "postback data" : "送信するテキスト";
@@ -706,8 +717,7 @@
         '<div class="field"><label for="fArea_value">' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"' + (area.actionType === "uri" ? ' inputmode="url" autocapitalize="off" spellcheck="false"' : "") + ' aria-describedby="fArea_valueError"><p class="field-error" id="fArea_valueError" aria-live="polite"></p></div>';
     }
 
-    el.inspector.innerHTML =
-      '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">🗑 消す</button></div>' +
+    return '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">🗑 消す</button></div>' +
       '<div class="field"><label>ラベル</label><input type="text" id="fArea_label" value="' + escapeHtml(area.label) + '"></div>' +
       '<div class="field"><label>アイコン(絵文字)</label><input type="text" id="fArea_icon" value="' + escapeHtml(area.icon) + '" placeholder="任意"></div>' +
 
@@ -759,7 +769,10 @@
       '<div class="field"><label>幅</label><input class="mono" type="text" inputmode="numeric" id="fArea_w" value="' + Math.round(area.w) + '"></div>' +
       '<div class="field"><label>高さ</label><input class="mono" type="text" inputmode="numeric" id="fArea_h" value="' + Math.round(area.h) + '"></div>' +
       '</div>';
+  }
 
+  // 右の設定欄の入力を、エリアにつなぐ
+  function bindInspector(area){
     document.getElementById("deleteAreaBtn").addEventListener("click", function(){ deleteArea(area.id); });
     var valueInput = document.getElementById("fArea_value");
     var showValueError = function(){ setFieldError(valueInput, document.getElementById("fArea_valueError"), actionValueError(area)); };
@@ -972,6 +985,86 @@
     ctx.closePath();
   }
 
+  // 書き出す画像に、エリア1つ（箱・画像・枠・文字）を描く
+  async function drawExportArea(ctx, a){
+    var img = null;
+    if (a.image) {
+      try { img = await loadImageAsync(a.image); } catch (e) { img = null; }
+    }
+    drawExportAreaBox(ctx, a, img);
+    drawExportAreaText(ctx, a);
+  }
+
+  // エリアの箱（影・背景の色か画像・枠の線）を描く。img は読めたエリアの画像（なければ null）
+  function drawExportAreaBox(ctx, a, img){
+    var radius = a.radius || 0;
+
+    if (a.border === "shadow" && !a.transparent && !a.image) {
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = 30;
+      ctx.shadowOffsetY = 10;
+      roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
+      ctx.fillStyle = a.bgColor;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    if (a.image) {
+      ctx.save();
+      roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
+      ctx.clip();
+      if (img) {
+        drawImageCover(ctx, img, a.x, a.y, a.w, a.h);
+      } else if (!a.transparent) {
+        ctx.fillStyle = a.bgColor;
+        ctx.fillRect(a.x, a.y, a.w, a.h);
+      }
+      ctx.restore();
+    } else if (!a.transparent && a.border !== "shadow") {
+      roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
+      ctx.fillStyle = a.bgColor;
+      ctx.fill();
+    }
+
+    if (a.border === "line") {
+      roundedRectPath(ctx, a.x + 2, a.y + 2, Math.max(0, a.w - 4), Math.max(0, a.h - 4), Math.max(0, radius - 2));
+      ctx.strokeStyle = (a.transparent || a.image) ? a.bgColor : "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+  }
+
+  // エリアの文字（絵文字のアイコンとラベル）を描く
+  function drawExportAreaText(ctx, a){
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = a.textColor;
+    var fontSize = a.fontSize ? a.fontSize : autoFontSize(a);
+    var weight = fontWeightCss(a.fontWeight);
+    var cx = a.x + a.w / 2;
+    var cy = a.y + a.h / 2;
+
+    if (a.textShadow) {
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.6)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 2;
+    }
+
+    if (a.icon) {
+      ctx.font = Math.round(fontSize * 1.7) + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+      ctx.fillText(a.icon, cx, cy - fontSize * 0.55);
+      ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
+      ctx.fillText(a.label || "", cx, cy + fontSize * 0.75);
+    } else {
+      ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
+      ctx.fillText(a.label || "", cx, cy);
+    }
+
+    if (a.textShadow) { ctx.restore(); }
+  }
+
   // 書き出す画像を、実寸のキャンバスに描く
   async function renderExportCanvas(menu){
     if (document.fonts && document.fonts.ready) {
@@ -996,72 +1089,7 @@
     }
 
     for (var i = 0; i < menu.areas.length; i += 1) {
-      var a = menu.areas[i];
-      var radius = a.radius || 0;
-
-      if (a.border === "shadow" && !a.transparent && !a.image) {
-        ctx.save();
-        ctx.shadowColor = "rgba(0,0,0,0.35)";
-        ctx.shadowBlur = 30;
-        ctx.shadowOffsetY = 10;
-        roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
-        ctx.fillStyle = a.bgColor;
-        ctx.fill();
-        ctx.restore();
-      }
-
-      if (a.image) {
-        var img = null;
-        try { img = await loadImageAsync(a.image); } catch (e) { img = null; }
-        ctx.save();
-        roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
-        ctx.clip();
-        if (img) {
-          drawImageCover(ctx, img, a.x, a.y, a.w, a.h);
-        } else if (!a.transparent) {
-          ctx.fillStyle = a.bgColor;
-          ctx.fillRect(a.x, a.y, a.w, a.h);
-        }
-        ctx.restore();
-      } else if (!a.transparent && a.border !== "shadow") {
-        roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
-        ctx.fillStyle = a.bgColor;
-        ctx.fill();
-      }
-
-      if (a.border === "line") {
-        roundedRectPath(ctx, a.x + 2, a.y + 2, Math.max(0, a.w - 4), Math.max(0, a.h - 4), Math.max(0, radius - 2));
-        ctx.strokeStyle = (a.transparent || a.image) ? a.bgColor : "rgba(255,255,255,0.35)";
-        ctx.lineWidth = 4;
-        ctx.stroke();
-      }
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = a.textColor;
-      var fontSize = a.fontSize ? a.fontSize : Math.max(24, Math.min(88, a.h * 0.14));
-      var weight = fontWeightCss(a.fontWeight);
-      var cx = a.x + a.w / 2;
-      var cy = a.y + a.h / 2;
-
-      if (a.textShadow) {
-        ctx.save();
-        ctx.shadowColor = "rgba(0,0,0,0.6)";
-        ctx.shadowBlur = 10;
-        ctx.shadowOffsetY = 2;
-      }
-
-      if (a.icon) {
-        ctx.font = Math.round(fontSize * 1.7) + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
-        ctx.fillText(a.icon, cx, cy - fontSize * 0.55);
-        ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
-        ctx.fillText(a.label || "", cx, cy + fontSize * 0.75);
-      } else {
-        ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
-        ctx.fillText(a.label || "", cx, cy);
-      }
-
-      if (a.textShadow) { ctx.restore(); }
+      await drawExportArea(ctx, menu.areas[i]);
     }
 
     return canvas;
