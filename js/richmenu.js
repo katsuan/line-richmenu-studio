@@ -4,6 +4,7 @@
  * - buildRichMenuObject：LINE の richmenu の JSON を作る
  * - actionError：LINE に断られるアクションを、書き出す前に見つける
  * - fitSize：大きな画像を、形を変えずに縮める大きさ
+ * - autoFontSize・fontWeightCss：エリアの字の大きさ・太さ（キャンバスの見本と書き出す画像で同じにする）
  * ブラウザでは window.RichMenuCore、node のテストでは require で使う。
  */
 (function (root, factory) {
@@ -195,6 +196,19 @@
     return { width: Math.max(1, Math.round(width * ratio)), height: Math.max(1, Math.round(height * ratio)) };
   }
 
+  /** 文字の大きさを決めていないエリアの字の大きさ（実寸。高さに合わせて 24〜88） */
+  function autoFontSize(area) {
+    return Math.max(24, Math.min(88, area.h * 0.14));
+  }
+
+  /** 文字の太さの名前を CSS の数に */
+  function fontWeightCss(w) {
+    if (w === "regular") return 500;
+    if (w === "semibold") return 600;
+    if (w === "extrabold") return 800;
+    return 700;
+  }
+
   /** 四捨五入しても、メニューの外にはみ出さない範囲（はみ出すと LINE に断られる） */
   function bounds(a, menu) {
     var x = Math.min(Math.max(Math.round(a.x), 0), menu.width - 1);
@@ -249,6 +263,8 @@
     nextIdNumber: nextIdNumber,
     buildRichMenuObject: buildRichMenuObject,
     actionError: actionError,
-    fitSize: fitSize
+    fitSize: fitSize,
+    autoFontSize: autoFontSize,
+    fontWeightCss: fontWeightCss
   };
 });

@@ -21,18 +21,20 @@ python3 -m http.server 8000
 | ファイル | 役わり |
 |---|---|
 | `index.html` | 画面（公開 URL） |
-| `app.js` | 画面の入口：状態・この端末に残す・元に戻す・キャンバスの操作・設定欄・JSON と画像の書き出し・テンプレート |
+| `app.js` | 画面の入口：状態・この端末に残す・元に戻す・キャンバスの操作・設定欄・JSON と画像の保存・テンプレートとグリッドのボタン |
 | `style.css` | 見た目 |
-| `js/richmenu.js` | 画面に触らない部分：この端末に残した中身を読む・richmenu の JSON を作る・LINE に断られるアクションを見つける・画像を縮める大きさ |
+| `js/richmenu.js` | 画面に触らない部分：この端末に残した中身を読む・richmenu の JSON を作る・LINE に断られるアクションを見つける・画像を縮める大きさ・エリアの字の大きさと太さ |
+| `js/templates.js` | テンプレートとグリッドの中身（エリアの位置・色）。画面に触らない |
+| `js/export.js` | 書き出す画像を描く（キャンバス）・LINE に入る 1MB までにする・テンプレートの背景のグラデーション |
 | `core.js` | `js/richmenu.js` の前の名前の写し（古い画面を覚えている LINE のため）。**2026-11-25 に消す** |
 | `sw.js` | 電波がないときに開く仕組み（おくるんの `shared/sw-core.js`） |
-| `test/` | `js/richmenu.js` のテスト |
+| `test/` | `js/richmenu.js`・`js/templates.js` のテスト |
 
-フォントは Google Fonts、トーストなどの部品は [おくるん](https://github.com/katsuan/line-share) の共通部品（`shared/ui.css`・`ui.js`）を使います。
+フォントは Google Fonts、トースト・はじめての案内・ボタンの線アイコンは [おくるん](https://github.com/katsuan/line-share) の共通部品（`shared/ui.css`・`ui.js`）を使います。
 
 ## テスト
 
-`js/richmenu.js` のテストです（node の標準のテスト。npm の部品は要りません）。
+`js/richmenu.js` と `js/templates.js` のテストです（node の標準のテスト。npm の部品は要りません）。
 
 ```bash
 node --test test/

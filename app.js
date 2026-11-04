@@ -11,9 +11,14 @@
   var DISPLAY_WIDTH = 860; // いちばん大きいときの表示の幅。画面がせまいときは、入る幅まで小さくする
   var STORAGE_KEY = "richmenu-studio:state:v1";
   var Core = window.RichMenuCore;
+  var Export = window.RichMenuExport;
+  var Templates = window.RichMenuTemplates;
   var SIZES = Core.SIZES;
   var MAX_AREAS = Core.LIMIT.AREAS;
   var TOO_MANY_AREAS = "エリアは最大 " + MAX_AREAS + " 個までです";
+  // ボタンの線アイコン（Q キットの ls-icon。字の色で出る）
+  var ICON_CLOSE = '<span class="ls-icon" data-icon="close" aria-hidden="true"></span>';
+  var ICON_DELETE = '<span class="ls-icon" data-icon="delete" aria-hidden="true"></span>';
 
   var idCounter = 1;
   // 新しい id（id1・id2…）を出す
@@ -122,19 +127,6 @@
     return String(str || "").replace(/[&<>"']/g, function(c){
       return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c];
     });
-  }
-
-  // 文字の大きさを決めていないエリアの字の大きさ（実寸。高さに合わせて 24〜88）
-  function autoFontSize(area){
-    return Math.max(24, Math.min(88, area.h * 0.14));
-  }
-
-  // 文字の太さの名前を CSS の数に
-  function fontWeightCss(w){
-    if (w === "regular") return 500;
-    if (w === "semibold") return 600;
-    if (w === "extrabold") return 800;
-    return 700;
   }
 
   // いまのタブのエリアを id で探す（なければ null）
@@ -277,22 +269,7 @@
       showToast(TOO_MANY_AREAS, "error");
       return;
     }
-    var cellW = Math.floor(menu.width / cols);
-    var cellH = Math.floor(menu.height / rows);
-    var areas = [];
-    var n = 1;
-    for (var r = 0; r < rows; r += 1) {
-      for (var c = 0; c < cols; c += 1) {
-        areas.push(makeArea("エリア" + n, {
-          x: c * cellW,
-          y: r * cellH,
-          w: cellW,
-          h: cellH,
-          bgColor: n % 2 === 0 ? "#0F5C33" : "#1B7A43"
-        }));
-        n += 1;
-      }
-    }
+    var areas = Templates.gridAreas(rows, cols, menu).map(function(spec){ return makeArea(spec.label, spec); });
     changeMaybeUndoable(rows + "×" + cols + " のグリッドを作りました", menu.areas.length > 0, function(){
       menu.areas = areas;
       menu.selectedId = null;
@@ -490,7 +467,7 @@
     try {
       if (!file || !/^image\//.test(file.type || "image/")) return null;
       var dataUrl = await readImageAsDataUrl(file);
-      var img = await loadImageAsync(dataUrl);
+      var img = await Export.loadImage(dataUrl);
       var fit = Core.fitSize(img.naturalWidth || img.width, img.naturalHeight || img.height, SIZES.full.width, SIZES.full.height);
       var small = fit.width < (img.naturalWidth || img.width);
       if (!small && /^data:image\/(png|jpeg|gif|webp);/i.test(dataUrl)) return dataUrl;
@@ -544,7 +521,7 @@
       chip.className = "tab-chip" + (isActive ? " is-active" : "");
       chip.innerHTML =
         '<button type="button" class="tab-main" role="tab" aria-selected="' + isActive + '">' + escapeHtml(label) + '</button>' +
-        (state.menus.length > 1 ? '<button type="button" class="tab-close" data-close="' + menu.id + '" aria-label="「' + escapeHtml(label) + '」のタブを消す" title="このタブを消す">✕</button>' : "");
+        (state.menus.length > 1 ? '<button type="button" class="tab-close" data-close="' + menu.id + '" aria-label="「' + escapeHtml(label) + '」のタブを消す" title="このタブを消す">' + ICON_CLOSE + '</button>' : "");
       chip.querySelector(".tab-main").addEventListener("click", function(){
         switchMenu(index);
       });
@@ -587,7 +564,7 @@
         '<span class="idx">' + (index + 1) + '</span>' +
         '<span class="lbl">' + (area.icon ? escapeHtml(area.icon) + " " : "") + escapeHtml(area.label || "(無題)") + '</span>' +
         '<span class="pill type-' + area.actionType + '">' + actionTypeLabel(area.actionType) + '</span>' +
-        '<button class="btn danger-text" type="button" title="消す" aria-label="「' + escapeHtml(area.label || "無題") + '」を消す" data-del="' + area.id + '">✕</button>';
+        '<button class="btn danger-text" type="button" title="消す" aria-label="「' + escapeHtml(area.label || "無題") + '」を消す" data-del="' + area.id + '">' + ICON_CLOSE + '</button>';
       li.addEventListener("click", function(e){
         if (e.target.closest("[data-del]")) return;
         menu.selectedId = area.id;
@@ -641,10 +618,9 @@
         box.style.boxShadow = "none";
       }
 
-      var autoFontSizeReal = autoFontSize(area);
-      var labelFontSize = Math.round((area.fontSize || autoFontSizeReal) * s);
+      var labelFontSize = Math.round((area.fontSize || Core.autoFontSize(area)) * s);
       var textShadowCss = area.textShadow ? "text-shadow:0 1px 3px rgba(0,0,0,0.65),0 0 8px rgba(0,0,0,0.35);" : "";
-      var labelStyle = "font-weight:" + fontWeightCss(area.fontWeight) + ";" + textShadowCss + "font-size:" + labelFontSize + "px;";
+      var labelStyle = "font-weight:" + Core.fontWeightCss(area.fontWeight) + ";" + textShadowCss + "font-size:" + labelFontSize + "px;";
       var iconStyle = textShadowCss + "font-size:" + Math.round(labelFontSize * 1.6) + "px;";
 
       box.innerHTML =
@@ -692,6 +668,23 @@
     bindInspector(area);
   }
 
+  // 設定欄の選ぶ欄の中身（[値, 見せる名前] の並び）
+  var BORDER_OPTIONS = [["line", "ライン"], ["shadow", "シャドウ"], ["none", "なし"]];
+  var WEIGHT_OPTIONS = [["regular", "標準"], ["semibold", "やや太字"], ["bold", "太字"], ["extrabold", "極太"]];
+  var ACTION_OPTIONS = [
+    ["message", "message(発言する)"],
+    ["postback", "postback(裏でデータ送信)"],
+    ["uri", "uri(リンクを開く)"],
+    ["richmenuswitch", "richmenuswitch(タブ切り替え)"]
+  ];
+
+  // 選ぶ欄の option を並べる（current を選んだ形に）
+  function choiceOptionsHtml(options, current){
+    return options.map(function(o){
+      return '<option value="' + o[0] + '"' + (o[0] === current ? " selected" : "") + '>' + o[1] + '</option>';
+    }).join("");
+  }
+
   // 右の設定欄の HTML（選んだエリアの値を入れる。文字は esc する）
   function inspectorHtml(area, menu){
     var isSwitch = area.actionType === "richmenuswitch";
@@ -717,7 +710,7 @@
         '<div class="field"><label for="fArea_value">' + actionValueLabel + '</label><input type="' + actionValueType + '" id="fArea_value" value="' + escapeHtml(area.actionValue) + '"' + (area.actionType === "uri" ? ' inputmode="url" autocapitalize="off" spellcheck="false"' : "") + ' aria-describedby="fArea_valueError"><p class="field-error" id="fArea_valueError" aria-live="polite"></p></div>';
     }
 
-    return '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">🗑 消す</button></div>' +
+    return '<div class="inspector-head"><h2>エリア設定</h2><button class="btn danger-text" id="deleteAreaBtn" type="button">' + ICON_DELETE + '消す</button></div>' +
       '<div class="field"><label>ラベル</label><input type="text" id="fArea_label" value="' + escapeHtml(area.label) + '"></div>' +
       '<div class="field"><label>アイコン(絵文字)</label><input type="text" id="fArea_icon" value="' + escapeHtml(area.icon) + '" placeholder="任意"></div>' +
 
@@ -736,19 +729,14 @@
 
       '<div class="grid2">' +
       '<div class="field"><label>枠のスタイル</label><select id="fArea_border">' +
-      '<option value="line"' + (area.border === "line" ? " selected" : "") + '>ライン</option>' +
-      '<option value="shadow"' + (area.border === "shadow" ? " selected" : "") + '>シャドウ</option>' +
-      '<option value="none"' + (area.border === "none" ? " selected" : "") + '>なし</option>' +
+      choiceOptionsHtml(BORDER_OPTIONS, area.border) +
       '</select></div>' +
       '<div class="field"><label>角丸</label><input class="mono" type="text" inputmode="numeric" id="fArea_radius" value="' + Math.round(area.radius || 0) + '"></div>' +
       '</div>' +
 
       '<div class="grid2">' +
       '<div class="field"><label>文字の太さ</label><select id="fArea_weight">' +
-      '<option value="regular"' + (area.fontWeight === "regular" ? " selected" : "") + '>標準</option>' +
-      '<option value="semibold"' + (area.fontWeight === "semibold" ? " selected" : "") + '>やや太字</option>' +
-      '<option value="bold"' + (area.fontWeight === "bold" ? " selected" : "") + '>太字</option>' +
-      '<option value="extrabold"' + (area.fontWeight === "extrabold" ? " selected" : "") + '>極太</option>' +
+      choiceOptionsHtml(WEIGHT_OPTIONS, area.fontWeight) +
       '</select></div>' +
       '<div class="field"><label>文字サイズ</label><input class="mono" type="text" inputmode="numeric" id="fArea_fontSize" value="' + (area.fontSize ? Math.round(area.fontSize) : "") + '" placeholder="自動"></div>' +
       '</div>' +
@@ -756,10 +744,7 @@
       '<div class="field"><label>文字に縁取り/影を付ける<input type="checkbox" id="fArea_textShadow"' + (area.textShadow ? " checked" : "") + '></label></div>' +
 
       '<div class="field"><label>アクション種別</label><select id="fArea_type">' +
-      '<option value="message"' + (area.actionType === "message" ? " selected" : "") + '>message(発言する)</option>' +
-      '<option value="postback"' + (area.actionType === "postback" ? " selected" : "") + '>postback(裏でデータ送信)</option>' +
-      '<option value="uri"' + (area.actionType === "uri" ? " selected" : "") + '>uri(リンクを開く)</option>' +
-      '<option value="richmenuswitch"' + (isSwitch ? " selected" : "") + '>richmenuswitch(タブ切り替え)</option>' +
+      choiceOptionsHtml(ACTION_OPTIONS, area.actionType) +
       '</select></div>' +
       actionFieldsHtml +
 
@@ -878,19 +863,30 @@
   async function downloadJson(){
     var menu = activeMenu();
     var text = JSON.stringify(buildRichMenuObject(menu), null, 2);
-    if (downloadsApi) {
-      try {
-        await downloadsApi.save({ filename: sanitizeFilename(menu.name) + ".json", data: text });
-        showToast("richmenu.json を保存しました");
-      } catch (err) {
-        showToast(downloadErrorMessage(err), "error");
-      }
-    } else if (triggerBrowserDownload(sanitizeFilename(menu.name) + ".json", text, "application/json")) {
-      showToast("richmenu.json をダウンロードしました");
-    } else {
+    var result = await saveFile(sanitizeFilename(menu.name) + ".json", text, "application/json");
+    if (result.how === "saved") showToast("richmenu.json を保存しました");
+    else if (result.how === "downloaded") showToast("richmenu.json をダウンロードしました");
+    else if (result.how === "failed") showToast(downloadErrorMessage(result.error), "error");
+    else {
       selectPreformattedText(document.getElementById("jsonPreview"));
       showToast("ここでは保存できないので、文字を選んでおきました。コピーして使ってね");
     }
+  }
+
+  /**
+   * ファイルを保存する。Claude の画面の中なら downloads で、ふつうのブラウザならダウンロードで。
+   * how は saved（downloads で保存）・downloaded（ダウンロード）・failed（downloads で断られた。error にわけ）・none（どちらもできない）。
+   */
+  async function saveFile(filename, data, mime){
+    if (downloadsApi) {
+      try {
+        await downloadsApi.save({ filename: filename, data: data });
+        return { how: "saved" };
+      } catch (err) {
+        return { how: "failed", error: err };
+      }
+    }
+    return { how: triggerBrowserDownload(filename, data, mime) ? "downloaded" : "none" };
   }
 
   // ファイル名に使えない文字を _ に
@@ -926,207 +922,14 @@
     }
   }
 
-  /**
-   * data:image/png;base64,... 形式の文字列を同期的に Blob へ変換します。
-   *
-   * @param {string} dataUrl data URL 文字列
-   * @returns {Blob}
-   */
-  function dataUrlToBlobSync(dataUrl){
-    var parts = dataUrl.split(",");
-    var mimeMatch = parts[0].match(/:(.*?);/);
-    var mime = mimeMatch ? mimeMatch[1] : "image/png";
-    var binary = atob(parts[1]);
-    var bytes = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return new Blob([bytes], { type: mime });
-  }
-
-  // ---------- export: png ----------
-  function loadImageAsync(src){
-    return new Promise(function(resolve, reject){
-      var img = new Image();
-      img.onload = function(){ resolve(img); };
-      img.onerror = reject;
-      img.src = src;
-    });
-  }
-
-  // 画像を枠いっぱいに（はみ出しは切る）描く
-  function drawImageCover(ctx, img, x, y, w, h){
-    var ir = img.width / img.height;
-    var tr = w / h;
-    var sx, sy, sw, sh;
-    if (ir > tr) {
-      sh = img.height;
-      sw = sh * tr;
-      sx = (img.width - sw) / 2;
-      sy = 0;
-    } else {
-      sw = img.width;
-      sh = sw / tr;
-      sx = 0;
-      sy = (img.height - sh) / 2;
-    }
-    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-  }
-
-  // 角の丸い四角の線を作る
-  function roundedRectPath(ctx, x, y, w, h, r){
-    var rr = Math.max(0, Math.min(r, w / 2, h / 2));
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-  }
-
-  // 書き出す画像に、エリア1つ（箱・画像・枠・文字）を描く
-  async function drawExportArea(ctx, a){
-    var img = null;
-    if (a.image) {
-      try { img = await loadImageAsync(a.image); } catch (e) { img = null; }
-    }
-    drawExportAreaBox(ctx, a, img);
-    drawExportAreaText(ctx, a);
-  }
-
-  // エリアの箱（影・背景の色か画像・枠の線）を描く。img は読めたエリアの画像（なければ null）
-  function drawExportAreaBox(ctx, a, img){
-    var radius = a.radius || 0;
-
-    if (a.border === "shadow" && !a.transparent && !a.image) {
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.35)";
-      ctx.shadowBlur = 30;
-      ctx.shadowOffsetY = 10;
-      roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
-      ctx.fillStyle = a.bgColor;
-      ctx.fill();
-      ctx.restore();
-    }
-
-    if (a.image) {
-      ctx.save();
-      roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
-      ctx.clip();
-      if (img) {
-        drawImageCover(ctx, img, a.x, a.y, a.w, a.h);
-      } else if (!a.transparent) {
-        ctx.fillStyle = a.bgColor;
-        ctx.fillRect(a.x, a.y, a.w, a.h);
-      }
-      ctx.restore();
-    } else if (!a.transparent && a.border !== "shadow") {
-      roundedRectPath(ctx, a.x, a.y, a.w, a.h, radius);
-      ctx.fillStyle = a.bgColor;
-      ctx.fill();
-    }
-
-    if (a.border === "line") {
-      roundedRectPath(ctx, a.x + 2, a.y + 2, Math.max(0, a.w - 4), Math.max(0, a.h - 4), Math.max(0, radius - 2));
-      ctx.strokeStyle = (a.transparent || a.image) ? a.bgColor : "rgba(255,255,255,0.35)";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
-  }
-
-  // エリアの文字（絵文字のアイコンとラベル）を描く
-  function drawExportAreaText(ctx, a){
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = a.textColor;
-    var fontSize = a.fontSize ? a.fontSize : autoFontSize(a);
-    var weight = fontWeightCss(a.fontWeight);
-    var cx = a.x + a.w / 2;
-    var cy = a.y + a.h / 2;
-
-    if (a.textShadow) {
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.6)";
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetY = 2;
-    }
-
-    if (a.icon) {
-      ctx.font = Math.round(fontSize * 1.7) + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
-      ctx.fillText(a.icon, cx, cy - fontSize * 0.55);
-      ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
-      ctx.fillText(a.label || "", cx, cy + fontSize * 0.75);
-    } else {
-      ctx.font = weight + " " + Math.round(fontSize) + 'px Archivo, sans-serif';
-      ctx.fillText(a.label || "", cx, cy);
-    }
-
-    if (a.textShadow) { ctx.restore(); }
-  }
-
-  // 書き出す画像を、実寸のキャンバスに描く
-  async function renderExportCanvas(menu){
-    if (document.fonts && document.fonts.ready) {
-      try { await document.fonts.ready; } catch (e) { /* ignore */ }
-    }
-    var canvas = document.createElement("canvas");
-    canvas.width = menu.width;
-    canvas.height = menu.height;
-    var ctx = canvas.getContext("2d");
-
-    if (menu.bgImage) {
-      try {
-        var bgImg = await loadImageAsync(menu.bgImage);
-        drawImageCover(ctx, bgImg, 0, 0, menu.width, menu.height);
-      } catch (e) {
-        ctx.fillStyle = menu.bgColor;
-        ctx.fillRect(0, 0, menu.width, menu.height);
-      }
-    } else {
-      ctx.fillStyle = menu.bgColor;
-      ctx.fillRect(0, 0, menu.width, menu.height);
-    }
-
-    for (var i = 0; i < menu.areas.length; i += 1) {
-      await drawExportArea(ctx, menu.areas[i]);
-    }
-
-    return canvas;
-  }
-
-  // キャンバスを画像のファイル（Blob）にする
-  function canvasToBlob(canvas, type, quality){
-    return new Promise(function(resolve){
-      if (canvas.toBlob) canvas.toBlob(resolve, type, quality);
-      else resolve(dataUrlToBlobSync(canvas.toDataURL(type, quality)));
-    });
-  }
-
-  /**
-   * LINE に入れられる画像（1MB まで）にする。PNG で入ればそのまま PNG。
-   * 写真などで大きくなるときは、入るまで画質を下げた JPEG にする。
-   */
-  async function encodeForLine(canvas){
-    var png = await canvasToBlob(canvas, "image/png");
-    if (png && png.size <= Core.LIMIT.LINE_IMAGE) return { blob: png, ext: "png", jpeg: false };
-    var qualities = [0.92, 0.85, 0.75, 0.65, 0.5];
-    var jpeg = null;
-    for (var i = 0; i < qualities.length; i += 1) {
-      jpeg = await canvasToBlob(canvas, "image/jpeg", qualities[i]);
-      if (jpeg && jpeg.size <= Core.LIMIT.LINE_IMAGE) break;
-    }
-    return { blob: jpeg || png, ext: "jpg", jpeg: true, tooLarge: !jpeg || jpeg.size > Core.LIMIT.LINE_IMAGE };
-  }
-
   var previewUrl = null;
   // 「PNGを書き出す」：画像を作って保存する（1MB をこえるときは JPEG）
   async function exportPng(){
     el.exportPngBtn.disabled = true;
     try {
       var menu = activeMenu();
-      var canvas = await renderExportCanvas(menu);
-      var out = await encodeForLine(canvas);
+      var canvas = await Export.renderMenuCanvas(menu);
+      var out = await Export.encodeForLine(canvas);
       var filename = sanitizeFilename(menu.name) + "." + out.ext;
       var kind = out.jpeg ? "JPEG" : "PNG";
       // PNG だと 1MB をこえて LINE に入らないときは、JPEG にしたことを知らせる
@@ -1137,18 +940,16 @@
       el.pngPreviewImg.src = previewUrl;
       el.pngPreview.classList.add("is-visible");
 
-      if (downloadsApi) {
-        try {
-          await downloadsApi.save({ filename: filename, data: out.blob });
-          el.pngPreviewHint.textContent = "保存しました。長押し/右クリックでも保存できます。" + note;
-          showToast(kind + " を保存しました" + note);
-        } catch (err) {
-          el.pngPreviewHint.textContent = "自動保存に失敗したため、下の画像を長押し/右クリックして保存してください。" + note;
-          showToast(downloadErrorMessage(err), "error");
-        }
-      } else if (triggerBrowserDownload(filename, out.blob, out.blob.type)) {
+      var result = await saveFile(filename, out.blob, out.blob.type);
+      if (result.how === "saved") {
+        el.pngPreviewHint.textContent = "保存しました。長押し/右クリックでも保存できます。" + note;
+        showToast(kind + " を保存しました" + note);
+      } else if (result.how === "downloaded") {
         el.pngPreviewHint.textContent = "ダウンロードしました。長押し/右クリックでも保存できます。" + note;
         showToast(kind + " をダウンロードしました" + note);
+      } else if (result.how === "failed") {
+        el.pngPreviewHint.textContent = "自動保存に失敗したため、下の画像を長押し/右クリックして保存してください。" + note;
+        showToast(downloadErrorMessage(result.error), "error");
       } else {
         el.pngPreviewHint.textContent = "この環境では自動保存できません。下の画像を長押し/右クリックして保存してください。" + note;
       }
@@ -1159,105 +960,6 @@
       el.exportPngBtn.disabled = false;
     }
   }
-
-  // ---------- templates ----------
-
-  /**
-   * グラデーション画像を生成して data URL を返します。
-   *
-   * menu.bgImage にそのまま設定できる形にすることで、
-   * 既存の背景画像パイプライン(プレビュー/PNG書き出し)をそのまま使い回せます。
-   *
-   * @param {number} targetW キャンバスの実寸幅
-   * @param {number} targetH キャンバスの実寸高さ
-   * @param {{colors:string[], angle?:number}} spec グラデーション定義
-   * @returns {string} data URL
-   */
-  function generateGradientDataUrl(targetW, targetH, spec){
-    var w = 480;
-    var h = Math.max(1, Math.round(w * targetH / targetW));
-    var c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    var ctx = c.getContext("2d");
-    var angle = spec.angle !== undefined ? spec.angle : 135;
-    var rad = (angle * Math.PI) / 180;
-    var cx = w / 2;
-    var cy = h / 2;
-    var dx = Math.cos(rad) * (w / 2);
-    var dy = Math.sin(rad) * (h / 2);
-    var grad = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
-    spec.colors.forEach(function(color, i){
-      grad.addColorStop(spec.colors.length > 1 ? i / (spec.colors.length - 1) : 0, color);
-    });
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-    return c.toDataURL("image/png");
-  }
-
-  var TEMPLATES = [
-    {
-      name: "シンプル基本形",
-      desc: "6ボタン・情報整理向け",
-      size: "full",
-      bg: { colors: ["#123524", "#0B3B21"], angle: 160 },
-      areas: [
-        { xr: 0, yr: 0, wr: 1 / 3, hr: 0.5, label: "お知らせ", icon: "📣", bgColor: "#15613F" },
-        { xr: 1 / 3, yr: 0, wr: 1 / 3, hr: 0.5, label: "予約", icon: "📅", bgColor: "#0C4A30" },
-        { xr: 2 / 3, yr: 0, wr: 1 / 3, hr: 0.5, label: "メニュー", icon: "📖", bgColor: "#15613F" },
-        { xr: 0, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "アクセス", icon: "📍", bgColor: "#0C4A30" },
-        { xr: 1 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "クーポン", icon: "🎟️", bgColor: "#15613F" },
-        { xr: 2 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "お問い合わせ", icon: "💬", bgColor: "#0C4A30" }
-      ]
-    },
-    {
-      name: "ヒーロー+3ボタン",
-      desc: "訴求バナー付き",
-      size: "full",
-      bg: { colors: ["#1F1147", "#4A2E8A"], angle: 135 },
-      areas: [
-        { xr: 0, yr: 0, wr: 1, hr: 0.62, label: "今日のおすすめ", icon: "✨", transparent: true, border: "none", fontWeight: "extrabold", fontSize: 96, textShadow: true },
-        { xr: 0, yr: 0.62, wr: 1 / 3, hr: 0.38, label: "予約する", icon: "📅", bgColor: "#B33951", border: "shadow", radius: 22 },
-        { xr: 1 / 3, yr: 0.62, wr: 1 / 3, hr: 0.38, label: "メニュー", icon: "📖", bgColor: "#1D5C63", border: "shadow", radius: 22 },
-        { xr: 2 / 3, yr: 0.62, wr: 1 / 3, hr: 0.38, label: "クーポン", icon: "🎟️", bgColor: "#4C3B4D", border: "shadow", radius: 22 }
-      ]
-    },
-    {
-      name: "左右2分割",
-      desc: "予約 / 問い合わせの2択",
-      size: "full",
-      bg: { colors: ["#092635", "#1B4242" ], angle: 120 },
-      areas: [
-        { xr: 0, yr: 0, wr: 0.5, hr: 1, label: "予約する", icon: "📅", bgColor: "#134E4A", border: "shadow", radius: 28, fontWeight: "extrabold", fontSize: 64 },
-        { xr: 0.5, yr: 0, wr: 0.5, hr: 1, label: "お問い合わせ", icon: "💬", bgColor: "#0F766E", border: "shadow", radius: 28, fontWeight: "extrabold", fontSize: 64 }
-      ]
-    },
-    {
-      name: "下部タブ風 4分割",
-      desc: "Compact・ミニマルなナビ",
-      size: "compact",
-      bg: { colors: ["#101820", "#1B2A38"], angle: 90 },
-      areas: [
-        { xr: 0, yr: 0, wr: 0.25, hr: 1, label: "ホーム", icon: "🏠", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true },
-        { xr: 0.25, yr: 0, wr: 0.25, hr: 1, label: "予約", icon: "📅", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true },
-        { xr: 0.5, yr: 0, wr: 0.25, hr: 1, label: "マイページ", icon: "👤", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true },
-        { xr: 0.75, yr: 0, wr: 0.25, hr: 1, label: "設定", icon: "⚙️", transparent: true, border: "none", fontWeight: "semibold", fontSize: 34, textShadow: true }
-      ]
-    },
-    {
-      name: "ファミリーログ",
-      desc: "体調・出来事などの家族記録",
-      size: "full",
-      bg: { colors: ["#3E2723", "#6D4C41"], angle: 135 },
-      areas: [
-        { xr: 0, yr: 0, wr: 0.5, hr: 0.5, label: "体調", icon: "🩺", bgColor: "#8D6E63" },
-        { xr: 0.5, yr: 0, wr: 0.5, hr: 0.5, label: "出来事", icon: "📌", bgColor: "#795548" },
-        { xr: 0, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "買い物", icon: "🛒", bgColor: "#A1887F" },
-        { xr: 1 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "家事", icon: "🧺", bgColor: "#6D4C41" },
-        { xr: 2 / 3, yr: 0.5, wr: 1 / 3, hr: 0.5, label: "自由記録", icon: "📝", bgColor: "#5D4037" }
-      ]
-    }
-  ];
 
   // テンプレートにする（あったものは「元に戻す」で戻せる）
   function applyTemplate(template){
@@ -1273,34 +975,17 @@
 
     if (template.bg) {
       menu.bgColor = template.bg.colors[0];
-      menu.bgImage = generateGradientDataUrl(menu.width, menu.height, template.bg);
+      menu.bgImage = Export.gradientDataUrl(menu.width, menu.height, template.bg);
     }
 
-    menu.areas = template.areas.map(function(spec){
-      var transparent = !!spec.transparent;
-      return makeArea(spec.label, {
-        x: Math.round(spec.xr * menu.width),
-        y: Math.round(spec.yr * menu.height),
-        w: Math.round(spec.wr * menu.width),
-        h: Math.round(spec.hr * menu.height),
-        icon: spec.icon || "",
-        bgColor: spec.bgColor || "#1B7A43",
-        textColor: spec.textColor || "#FFFFFF",
-        transparent: transparent,
-        radius: spec.radius !== undefined ? spec.radius : 16,
-        border: spec.border || "line",
-        fontWeight: spec.fontWeight || "bold",
-        fontSize: spec.fontSize || null,
-        textShadow: spec.textShadow !== undefined ? spec.textShadow : transparent
-      });
-    });
+    menu.areas = Templates.templateAreas(template, menu).map(function(spec){ return makeArea(spec.label, spec); });
     menu.selectedId = null;
   }
 
   // テンプレートのボタンを並べる
   function renderTemplateButtons(){
     el.templateList.innerHTML = "";
-    TEMPLATES.forEach(function(template){
+    Templates.TEMPLATES.forEach(function(template){
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "tpl-btn";
@@ -1329,20 +1014,10 @@
     });
   }
 
-  // ---------- static UI: grid presets ----------
-  var GRID_PRESETS = [
-    { rows: 1, cols: 1, label: "全面 1つ" },
-    { rows: 1, cols: 2, label: "1×2" },
-    { rows: 2, cols: 2, label: "2×2" },
-    { rows: 2, cols: 3, label: "2×3" },
-    { rows: 3, cols: 2, label: "3×2" },
-    { rows: 1, cols: 3, label: "1×3" }
-  ];
-
   // グリッドのボタンを並べる
   function renderGridPresetButtons(){
     el.gridPresets.innerHTML = "";
-    GRID_PRESETS.forEach(function(p){
+    Templates.GRID_PRESETS.forEach(function(p){
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "grid-btn";
@@ -1420,7 +1095,7 @@
     window.LineShareUI.firstTip("richmenu-studio", [
       "「テンプレート」か「グリッド」で、ボタンの並びを作る（キャンバスをなぞっても作れます）",
       "エリアを選ぶと、文字・色・押したときの動きを変えられます",
-      "「🖼️ PNGを書き出す」と JSON を、LINE のリッチメニューに使う"
+      "「PNGを書き出す」と JSON を、LINE のリッチメニューに使う"
     ], document.querySelector(".workspace"));
   });
 

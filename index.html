@@ -12,7 +12,7 @@
 <script src="https://katsuan.github.io/line-share/shared/ui.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=20261029">
+<link rel="stylesheet" href="style.css?v=20261105">
 
 <div class="app">
   <header class="topbar">
@@ -36,7 +36,7 @@
 
   <div class="tabbar-row">
     <div class="tabbar" id="tabbar" role="tablist" aria-label="メニューのタブ"></div>
-    <button class="btn ghost" id="addMenuBtn" type="button">＋ タブを足す</button>
+    <button class="btn ghost" id="addMenuBtn" type="button"><span class="ls-icon" data-icon="add" aria-hidden="true"></span>タブを足す</button>
   </div>
 
   <div class="workspace">
@@ -88,7 +88,7 @@
 
       <div class="tb-section">
         <h2>エリア <span class="counter" id="areaCounter">0/20</span></h2>
-        <button class="btn full" id="addAreaBtn" type="button">＋ エリアを足す</button>
+        <button class="btn full" id="addAreaBtn" type="button"><span class="ls-icon" data-icon="add" aria-hidden="true"></span>エリアを足す</button>
         <ul class="areas-list" id="areasList"></ul>
         <p class="empty-count" id="areasEmptyHint">キャンバス上をドラッグしてもエリアを作成できます。</p>
       </div>
@@ -111,15 +111,15 @@
       <div class="json-head">
         <span>richmenu.json プレビュー</span>
         <div class="json-actions">
-          <button class="btn ghost" id="copyJsonBtn" type="button">📋 コピー</button>
-          <button class="btn ghost" id="downloadJsonBtn" type="button">⬇️ ダウンロード</button>
+          <button class="btn ghost" id="copyJsonBtn" type="button"><span class="ls-icon" data-icon="copy" aria-hidden="true"></span>コピー</button>
+          <button class="btn ghost" id="downloadJsonBtn" type="button"><span class="ls-icon" data-icon="save" aria-hidden="true"></span>ダウンロード</button>
         </div>
       </div>
       <pre id="jsonPreview"><code></code></pre>
     </section>
 
     <section class="export-panel panel">
-      <button class="btn primary full" id="exportPngBtn" type="button">🖼️ PNGを書き出す</button>
+      <button class="btn primary full" id="exportPngBtn" type="button"><span class="ls-icon" data-icon="image" aria-hidden="true"></span>PNGを書き出す</button>
       <p class="hint" id="exportHint">Messaging API の Rich Menu 作成エンドポイントにそのまま渡せる形式で書き出します。</p>
       <div class="png-preview" id="pngPreview">
         <img id="pngPreviewImg" alt="書き出したリッチメニュー画像のプレビュー">
@@ -130,5 +130,7 @@
 </div>
 
 
-<script src="js/richmenu.js?v=20261029"></script>
-<script src="app.js?v=20261029"></script>
+<script src="js/richmenu.js?v=20261105"></script>
+<script src="js/templates.js?v=20261105"></script>
+<script src="js/export.js?v=20261105"></script>
+<script src="app.js?v=20261105"></script>
