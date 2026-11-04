@@ -73,7 +73,6 @@
   var state = restored || createInitialState();
 
   var dragState = null;
-  var downloadsApi = null;
 
   // いま開いているタブのメニュー
   function activeMenu(){ return state.menus[state.activeMenuIndex]; }
@@ -222,21 +221,6 @@
     undoable("新しく作りはじめました", function(){
       state = createInitialState();
     });
-  }
-
-  // 保存できなかったわけを、やさしい言葉に
-  function downloadErrorMessage(err){
-    var code = err && err.code;
-    switch (code) {
-      case "declined": return "保存をやめました";
-      case "rate_limited": return "少し待ってから、もう一度ためしてね";
-      case "too_large": return "ファイルが大きすぎて保存できません（16MB まで）";
-      case "rejected_extension":
-      case "extension_not_enabled": return "この形式のファイルは保存できません";
-      default:
-        console.error(err);
-        return "保存できませんでした。もう一度ためしてね";
-    }
   }
 
   // ---------- default factories ----------
@@ -863,30 +847,12 @@
   async function downloadJson(){
     var menu = activeMenu();
     var text = JSON.stringify(buildRichMenuObject(menu), null, 2);
-    var result = await saveFile(sanitizeFilename(menu.name) + ".json", text, "application/json");
-    if (result.how === "saved") showToast("richmenu.json を保存しました");
-    else if (result.how === "downloaded") showToast("richmenu.json をダウンロードしました");
-    else if (result.how === "failed") showToast(downloadErrorMessage(result.error), "error");
-    else {
+    if (triggerBrowserDownload(sanitizeFilename(menu.name) + ".json", text, "application/json")) {
+      showToast("richmenu.json をダウンロードしました");
+    } else {
       selectPreformattedText(document.getElementById("jsonPreview"));
       showToast("ここでは保存できないので、文字を選んでおきました。コピーして使ってね");
     }
-  }
-
-  /**
-   * ファイルを保存する。Claude の画面の中なら downloads で、ふつうのブラウザならダウンロードで。
-   * how は saved（downloads で保存）・downloaded（ダウンロード）・failed（downloads で断られた。error にわけ）・none（どちらもできない）。
-   */
-  async function saveFile(filename, data, mime){
-    if (downloadsApi) {
-      try {
-        await downloadsApi.save({ filename: filename, data: data });
-        return { how: "saved" };
-      } catch (err) {
-        return { how: "failed", error: err };
-      }
-    }
-    return { how: triggerBrowserDownload(filename, data, mime) ? "downloaded" : "none" };
   }
 
   // ファイル名に使えない文字を _ に
@@ -896,9 +862,7 @@
   }
 
   /**
-   * Claude Artifact のサンドボックス外(GitHub Pages など通常のブラウザ)で
-   * 動いている場合向けの素朴なダウンロード手段。
-   * サンドボックス内ではクリックが無効化されるだけで害はない。
+   * ファイルをダウンロードする（リンクを作って押す）。
    *
    * @param {string} filename 保存ファイル名
    * @param {Blob|string} data 保存内容
@@ -940,16 +904,9 @@
       el.pngPreviewImg.src = previewUrl;
       el.pngPreview.classList.add("is-visible");
 
-      var result = await saveFile(filename, out.blob, out.blob.type);
-      if (result.how === "saved") {
-        el.pngPreviewHint.textContent = "保存しました。長押し/右クリックでも保存できます。" + note;
-        showToast(kind + " を保存しました" + note);
-      } else if (result.how === "downloaded") {
+      if (triggerBrowserDownload(filename, out.blob, out.blob.type)) {
         el.pngPreviewHint.textContent = "ダウンロードしました。長押し/右クリックでも保存できます。" + note;
         showToast(kind + " をダウンロードしました" + note);
-      } else if (result.how === "failed") {
-        el.pngPreviewHint.textContent = "自動保存に失敗したため、下の画像を長押し/右クリックして保存してください。" + note;
-        showToast(downloadErrorMessage(result.error), "error");
       } else {
         el.pngPreviewHint.textContent = "この環境では自動保存できません。下の画像を長押し/右クリックして保存してください。" + note;
       }
@@ -1101,9 +1058,4 @@
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(function(){});
 
-  if (window.claude && typeof window.claude.use === "function") {
-    window.claude.use("downloads").then(function(api){
-      downloadsApi = api;
-    });
-  }
 })();
