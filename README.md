@@ -30,7 +30,7 @@ python3 -m http.server 8000
 | `sw.js` | 電波がないときに開く仕組み（おくるんの `shared/sw-core.js`） |
 | `test/` | `js/richmenu.js`・`js/templates.js` のテスト |
 
-フォントは Google Fonts、トースト・はじめての案内・ボタンの線アイコンは [おくるん](https://github.com/katsuan/line-share) の共通部品（`shared/ui.css`・`ui.js`）を使います。
+フォントは Google Fonts、トースト・はじめての案内・ボタンの線アイコンは [おくるん](https://github.com/katsuan/oqrn) の共通部品（`shared/ui.css`・`ui.js`）を使います。
 
 ## テスト
 
